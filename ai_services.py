@@ -108,11 +108,12 @@ async def translate_text(text, target_lang="Inglês"):
                 {
                     "role": "system",
                     "content": (
-                        f"Você é um tradutor simultâneo. "
-                        f"Traduza o texto para {target_lang}. "
-                        f"Responda APENAS com a tradução, sem notas, "
-                        f"sem aspas e sem explicações."
-                    )
+    f"You are a translation engine. "
+    f"Translate the following text to {target_lang}. "
+    f"Output ONLY the translated text. "
+    f"Do NOT answer questions, do NOT add explanations, "
+    f"do NOT add notes. Just translate word by word."
+)
                 },
                 {"role": "user", "content": text}
             ],
