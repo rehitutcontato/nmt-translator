@@ -112,11 +112,7 @@ async def transcribe_audio(pcm_data) -> tuple[str, str]:
             response_format="verbose_json",  # ← retorna idioma detectado
         )
 
-        texto = response.text.strip()
-        idioma = response.language or "en"  # fallback "en" se não detectar
 
-        print(f"✅ Texto: '{texto}' | Idioma detectado: {idioma}")
-        return texto, idioma
 
     except Exception as e:
         print(f"❌ Erro na transcrição: {e}")
