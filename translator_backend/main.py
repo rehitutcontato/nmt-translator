@@ -18,12 +18,21 @@ Uso:
     # ⚠️ workers=1 obrigatório: ConnectionManager é in-memory (não distribuído)
 """
 
+
 import logging
 import os
 import sys
 import time
 from contextlib import asynccontextmanager
 from pathlib import Path
+
+# Carrega .env automaticamente no ambiente local.
+# Na nuvem (Railway), as variáveis vêm do painel — dotenv não é necessário.
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
 
 import uvicorn
 from fastapi import FastAPI, WebSocket

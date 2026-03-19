@@ -1,26 +1,20 @@
 # ─────────────────────────────────────────────────────────────────────────────
-# requirements.txt — Dependências do servidor de tradução em tempo real
-# Fase 2: Protótipo Virtual (browser + APIs reais via Groq)
+# requirements.txt
+# Fase 2: Protótipo Virtual + Deploy Railway
 # ─────────────────────────────────────────────────────────────────────────────
 
 # ── Servidor ASGI ─────────────────────────────────────────────────────────────
 fastapi==0.115.6
-uvicorn[standard]==0.32.1          # [standard] inclui websockets + httptools
+uvicorn[standard]==0.32.1
+
+# ── Variáveis de ambiente (.env local) ────────────────────────────────────────
+python-dotenv==1.0.1
 
 # ── APIs de IA (Groq: Whisper STT + LLaMA-3 Tradução) ────────────────────────
-groq>=0.9.0                        # Cliente async oficial da Groq
+groq>=0.9.0
 
-# ── TTS — Microsoft Edge TTS (gratuito, sem chave de API) ─────────────────────
-edge-tts>=6.1.9                    # Síntese de voz via Microsoft Edge
+# ── TTS ───────────────────────────────────────────────────────────────────────
+edge-tts>=6.1.9
 
 # ── Decodificação de áudio sem FFmpeg ─────────────────────────────────────────
-miniaudio>=1.59                    # Decodifica MP3/OGG → PCM puro em memória
-
-# ── Fase 3 — ESP32 físico (descomentar ao migrar) ─────────────────────────────
-# google-cloud-speech==2.28.0      # Alternativa STT para ESP32
-# google-cloud-texttospeech==2.20.0
-
-# ── Desenvolvimento e testes ──────────────────────────────────────────────────
-# pytest==8.3.4
-# pytest-asyncio==0.24.0
-# httpx==0.28.1
+miniaudio>=1.59
