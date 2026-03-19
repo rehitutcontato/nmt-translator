@@ -35,7 +35,7 @@ from typing import Dict
 from fastapi import WebSocket, WebSocketDisconnect
 
 from config import AUDIO_CFG, SERVER_CFG
-from pipeline import run_pipeline
+from pipeline import run_pipeline, SessionLanguageTracker
 
 logger = logging.getLogger("websocket_handler")
 
@@ -179,7 +179,8 @@ async def handle_translation_session(websocket: WebSocket) -> None:
         return
 
     buffer = AudioBuffer(session_id)
-    pipeline_lock = asyncio.Lock()  # impede execuções paralelas por sessão
+    pipeline_lock = asyncio.Lock()
+    lang_tracker = SessionLanguageTracker(session_id)  # rastreia idiomas da sessão  # impede execuções paralelas por sessão
 
     # ── Função interna: dispara pipeline quando fala estiver completa ──────
     async def _dispatch_pipeline() -> None:
@@ -204,13 +205,19 @@ async def handle_translation_session(websocket: WebSocket) -> None:
                 "message": "processing"
             })
 
-            audio_out = await run_pipeline(audio_data, session_id)
+            audio_out, metadata = await run_pipeline(audio_data, session_id, lang_tracker)
 
             if audio_out:
-                # Envia áudio traduzido de volta ao ESP32
+                # Envia metadata (textos + idiomas) para o frontend exibir
+                if metadata:
+                    await manager.send_json(session_id, metadata)
+                # Envia áudio traduzido
                 await manager.send_bytes(session_id, audio_out)
                 logger.info(
-                    "[%s] 🔊 Áudio traduzido enviado: %d bytes", session_id, len(audio_out)
+                    "[%s] 🔊 Áudio enviado: %d bytes | %s → %s",
+                    session_id, len(audio_out),
+                    metadata.get("lang_from", "?"),
+                    metadata.get("lang_to", "?"),
                 )
             else:
                 await manager.send_json(session_id, {

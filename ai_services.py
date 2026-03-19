@@ -7,9 +7,47 @@ from groq import AsyncGroq
 import edge_tts
 import miniaudio
 
-# Inicializa o cliente da Groq (Crie sua chave gratuita em console.groq.com)
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 groq_client = AsyncGroq(api_key=GROQ_API_KEY)
+
+# Mapa: código ISO → voz Edge TTS mais natural
+# Usado pelo TTS automático baseado no idioma detectado
+VOICE_MAP = {
+    "pt": "pt-BR-FranciscaNeural",
+    "en": "en-US-ChristopherNeural",
+    "de": "de-DE-ConradNeural",
+    "es": "es-ES-AlvaroNeural",
+    "fr": "fr-FR-HenriNeural",
+    "it": "it-IT-DiegoNeural",
+    "ja": "ja-JP-KeitaNeural",
+    "zh": "zh-CN-YunxiNeural",
+    "ko": "ko-KR-InJoonNeural",
+    "ru": "ru-RU-DmitryNeural",
+    "ar": "ar-SA-HamedNeural",
+    "hi": "hi-IN-MadhurNeural",
+    "nl": "nl-NL-MaartenNeural",
+    "pl": "pl-PL-MarekNeural",
+    "tr": "tr-TR-AhmetNeural",
+}
+
+# Mapa: código ISO → nome por extenso para o prompt do LLaMA
+LANG_LABEL_MAP = {
+    "pt": "Portuguese",
+    "en": "English",
+    "de": "German",
+    "es": "Spanish",
+    "fr": "French",
+    "it": "Italian",
+    "ja": "Japanese",
+    "zh": "Chinese",
+    "ko": "Korean",
+    "ru": "Russian",
+    "ar": "Arabic",
+    "hi": "Hindi",
+    "nl": "Dutch",
+    "pl": "Polish",
+    "tr": "Turkish",
+}
 
 
 # ==========================================
@@ -17,18 +55,8 @@ groq_client = AsyncGroq(api_key=GROQ_API_KEY)
 # ==========================================
 def has_speech(pcm_data: bytes, threshold: float = 0.01) -> bool:
     """
-    Verifica se o áudio contém fala real medindo o volume RMS.
-
-    Evita enviar silêncio ao Whisper, que alucina texto quando
-    não detecta fala (ex: retorna 'Legenda Adriana Zanotto').
-
-    Parâmetros:
-        pcm_data  — Bytes PCM 16-bit mono
-        threshold — Volume mínimo normalizado (0.0 a 1.0).
-                    0.01 = 1% do volume máximo. Aumente para
-                    ambientes mais ruidosos (0.02, 0.03...).
-    Retorno:
-        True se há fala detectável, False se for silêncio/ruído.
+    Mede o volume RMS do áudio. Retorna False se for silêncio,
+    evitando alucinações do Whisper com áudio vazio.
     """
     if len(pcm_data) < 2:
         return False
@@ -43,14 +71,11 @@ def has_speech(pcm_data: bytes, threshold: float = 0.01) -> bool:
 # FUNÇÃO AUXILIAR: PCM PARA WAV
 # ==========================================
 def pcm_to_wav(pcm_data, sample_rate=16000):
-    """
-    Transforma áudio PCM cru em arquivo .wav na memória.
-    A API Groq Whisper exige formato de arquivo — não aceita PCM direto.
-    """
+    """Converte PCM cru para WAV em memória. Whisper exige arquivo."""
     wav_io = io.BytesIO()
     with wave.open(wav_io, 'wb') as wav_file:
-        wav_file.setnchannels(1)       # Mono
-        wav_file.setsampwidth(2)       # 16-bit
+        wav_file.setnchannels(1)
+        wav_file.setsampwidth(2)
         wav_file.setframerate(sample_rate)
         wav_file.writeframes(pcm_data)
     wav_io.seek(0)
@@ -59,47 +84,55 @@ def pcm_to_wav(pcm_data, sample_rate=16000):
 
 
 # ==========================================
-# 1. STT (SPEECH-TO-TEXT) - API GROQ
+# 1. STT — DETECÇÃO AUTOMÁTICA DE IDIOMA
 # ==========================================
-async def transcribe_audio(pcm_data):
+async def transcribe_audio(pcm_data) -> tuple[str, str]:
     """
-    Envia áudio PCM para o Groq Whisper Large v3 e retorna o texto.
+    Transcreve áudio PCM e detecta o idioma automaticamente.
 
-    Rejeita silêncio antes de chamar a API para evitar alucinações
-    do Whisper (que inventa texto quando não há fala detectável).
+    Retorno:
+        Tupla (texto, idioma_iso) — ex: ("Olá mundo", "pt")
+        Retorna ("", "") se silêncio ou falha.
+
+    MUDANÇA: removido language="pt" fixo. O Whisper agora detecta
+    automaticamente e retorna o idioma junto com a transcrição.
     """
     try:
-        # Guarda de segurança: não envia silêncio ao Whisper
         if not has_speech(pcm_data):
             print("🔇 Silêncio detectado — ignorando")
-            return ""
+            return "", ""
 
-        print("🎙️ Enviando áudio para transcrição...")
+        print("🎙️ Transcrevendo + detectando idioma...")
         wav_file = pcm_to_wav(pcm_data)
 
-        transcription = await groq_client.audio.transcriptions.create(
+        # verbose_json retorna o idioma detectado além do texto
+        response = await groq_client.audio.transcriptions.create(
             file=("audio.wav", wav_file.read()),
             model="whisper-large-v3",
-            response_format="text",
-            language="pt"
+            response_format="verbose_json",  # ← retorna idioma detectado
         )
-        print(f"✅ Texto reconhecido: {transcription}")
-        return transcription
+
+        texto = response.text.strip()
+        idioma = response.language or "en"  # fallback "en" se não detectar
+
+        print(f"✅ Texto: '{texto}' | Idioma detectado: {idioma}")
+        return texto, idioma
 
     except Exception as e:
         print(f"❌ Erro na transcrição: {e}")
-        return ""
+        return "", ""
 
 
 # ==========================================
-# 2. TRADUÇÃO - API GROQ (LLaMA 3.1)
+# 2. TRADUÇÃO — IDIOMA DESTINO DINÂMICO
 # ==========================================
-async def translate_text(text, target_lang="Inglês"):
+async def translate_text(text: str, target_lang: str = "English") -> str:
     """
-    Usa o LLaMA-3.1 da Groq para traduzir o texto.
+    Traduz texto para o idioma destino usando LLaMA-3.1.
 
-    Nota: modelo atualizado de llama3-8b-8192 (desativado)
-    para llama-3.1-8b-instant (substituto oficial da Groq).
+    Parâmetros:
+        text        — Texto a traduzir
+        target_lang — Nome do idioma destino em inglês (ex: "German")
     """
     try:
         print(f"🧠 Traduzindo para {target_lang}...")
@@ -108,15 +141,18 @@ async def translate_text(text, target_lang="Inglês"):
                 {
                     "role": "system",
                     "content": (
-    f"Translate to {target_lang}. "
-    f"Reply with ONLY the translation. Nothing else."
-)
+                        f"You are a translation engine. "
+                        f"Translate the following text to {target_lang}. "
+                        f"Output ONLY the translated text. "
+                        f"Do NOT answer questions, do NOT add explanations, "
+                        f"do NOT add notes. Just translate word by word."
+                    )
                 },
                 {"role": "user", "content": text}
             ],
             model="llama-3.1-8b-instant",
         )
-        traducao = chat_completion.choices[0].message.content
+        traducao = chat_completion.choices[0].message.content.strip()
         print(f"✅ Tradução: {traducao}")
         return traducao
 
@@ -126,20 +162,17 @@ async def translate_text(text, target_lang="Inglês"):
 
 
 # ==========================================
-# 3. TTS (TEXT-TO-SPEECH) - EDGE TTS
+# 3. TTS — VOZ AUTOMÁTICA POR IDIOMA
 # ==========================================
-async def generate_speech(text, voice="en-US-ChristopherNeural"):
+async def generate_speech(text: str, voice: str = "en-US-ChristopherNeural") -> bytes:
     """
-    Gera áudio via Microsoft Edge TTS (gratuito, sem chave de API)
-    e converte MP3 -> PCM 16kHz mono 16-bit usando miniaudio.
-
-    Não requer FFmpeg — toda conversão acontece em memória.
+    Gera áudio PCM 16kHz via Edge TTS.
+    A voz é selecionada automaticamente pelo pipeline com base no idioma destino.
     """
     try:
-        print("🔊 Gerando áudio da tradução...")
+        print(f"🔊 Gerando áudio | voz: {voice}")
         communicate = edge_tts.Communicate(text, voice)
 
-        # Coleta chunks de áudio MP3 da Microsoft
         audio_mp3_data = b""
         async for chunk in communicate.stream():
             if chunk["type"] == "audio":
@@ -149,16 +182,15 @@ async def generate_speech(text, voice="en-US-ChristopherNeural"):
             print("❌ Edge TTS não retornou áudio")
             return b""
 
-        # Decodifica MP3 -> PCM 16kHz mono 16-bit direto em memória
         decoded = miniaudio.decode(
             audio_mp3_data,
             nchannels=1,
             sample_rate=16000
         )
 
-        print("✅ Áudio PCM 16kHz pronto para envio!")
+        print("✅ Áudio PCM 16kHz pronto!")
         return decoded.samples.tobytes()
 
     except Exception as e:
-        print(f"❌ Erro na geração de voz: {e}")
+        print(f"❌ Erro no TTS: {e}")
         return b""

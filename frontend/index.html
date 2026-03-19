@@ -1,307 +1,77 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Tradutor Tempo Real</title>
-
-  <style>
-    * { box-sizing: border-box; }
-
-    body {
-      margin: 0;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      height: 100vh;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      background: radial-gradient(circle at 30% 30%, #1e293b, #020617);
-      color: white;
-    }
-
-    .container {
-      backdrop-filter: blur(25px);
-      background: rgba(255,255,255,0.05);
-      border: 1px solid rgba(255,255,255,0.1);
-      border-radius: 30px;
-      padding: 40px;
-      text-align: center;
-      box-shadow: 0 10px 40px rgba(0,0,0,0.4);
-    }
-
-    h1 {
-      margin-bottom: 5px;
-      font-weight: 500;
-      opacity: 0.9;
-    }
-
-    #status {
-      margin-bottom: 25px;
-      font-size: 14px;
-      opacity: 0.6;
-    }
-
-    #btn {
-      width: 220px;
-      height: 220px;
-      border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      text-align: center;
-      font-size: 18px;
-      cursor: pointer;
-      user-select: none;
-
-      background: rgba(255,255,255,0.08);
-      border: 1px solid rgba(255,255,255,0.15);
-      backdrop-filter: blur(20px);
-
-      box-shadow:
-        inset 0 0 20px rgba(255,255,255,0.05),
-        0 10px 30px rgba(0,0,0,0.4);
-
-      transition: all 0.2s ease;
-    }
-
-    #btn:hover {
-      transform: scale(1.05);
-    }
-
-    #btn:active {
-      transform: scale(0.95);
-      box-shadow: inset 0 0 30px rgba(0,0,0,0.6);
-    }
-
-    .leds {
-      display: flex;
-      justify-content: center;
-      gap: 12px;
-      margin-top: 30px;
-    }
-
-    .led {
-      width: 12px;
-      height: 12px;
-      border-radius: 50%;
-      background: rgba(255,255,255,0.2);
-      transition: all 0.2s;
-    }
-
-    .on {
-      transform: scale(1.3);
-      box-shadow: 0 0 12px currentColor;
-    }
-
-    .rec { color: #ff4d4d; background: #ff4d4d; }
-    .proc { color: #ffd84d; background: #ffd84d; }
-    .speak { color: #4dd2ff; background: #4dd2ff; }
-
-    .blink {
-      animation: blink 1s infinite;
-    }
-
-    @keyframes blink {
-      0%,100% { opacity: 1; }
-      50% { opacity: 0.3; }
-    }
-
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tradutor Neural Bidirecional</title>
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
+    <main class="app-container">
 
-<div class="container">
-  <h1>Tradutor</h1>
-  <div id="status">Aguardando...</div>
+        <h1>Tradutor Neural</h1>
 
-  <div id="btn">Pressione para falar</div>
+        <!-- Display dos idiomas detectados automaticamente -->
+        <div id="lang-display">
+            <span class="lang" id="lang-a">?</span>
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24"
+                 viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                 style="color:#94a3b8; flex-shrink:0;">
+                <path d="M17 2.1l4 4-4 4"/><path d="M21 6H3"/>
+                <path d="M7 21.9l-4-4 4-4"/><path d="M3 18h18"/>
+            </svg>
+            <span class="lang" id="lang-b">?</span>
+        </div>
 
-  <div class="leds">
-    <div id="rec" class="led rec"></div>
-    <div id="proc" class="led proc"></div>
-    <div id="speak" class="led speak"></div>
-  </div>
-</div>
+        <!-- Hub dos botões de fala -->
+        <div class="buttons-hub">
 
-<script>
-let ws;
-let audioContext;
-let processor;
-let input;
-let stream;
-let isRecording = false;
+            <div class="mic-zone" id="zone-a">
+                <div class="pulse-wave pulse-a" id="pulse-a"></div>
+                <button class="btn-speak btn-a" id="btn-a" aria-label="Falar como Pessoa A">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48"
+                         viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                         stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+                        <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                        <line x1="12" y1="19" x2="12" y2="23"/>
+                    </svg>
+                </button>
+            </div>
 
-const btn = document.getElementById('btn');
-const statusEl = document.getElementById('status');
+            <div class="mic-zone" id="zone-b">
+                <div class="pulse-wave pulse-b" id="pulse-b"></div>
+                <button class="btn-speak btn-b" id="btn-b" aria-label="Falar como Pessoa B">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48"
+                         viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                         stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+                        <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                        <line x1="12" y1="19" x2="12" y2="23"/>
+                    </svg>
+                </button>
+            </div>
 
-const ledRec = document.getElementById('rec');
-const ledProc = document.getElementById('proc');
-const ledSpeak = document.getElementById('speak');
+        </div>
 
-function setState(state) {
-  [ledRec, ledProc, ledSpeak].forEach(l => {
-    l.classList.remove('on', 'blink');
-  });
+        <!-- Resultado da tradução -->
+        <div class="transcript-card">
+            <div class="box-title">Resultado da Tradução</div>
+            <div class="original-text"   id="txt-original">—</div>
+            <div class="translated-text" id="txt-translated">—</div>
+        </div>
 
-  if (state === 'gravando') {
-    ledRec.classList.add('on', 'blink');
-    statusEl.innerText = 'Ouvindo...';
-  }
-  else if (state === 'processando') {
-    ledProc.classList.add('on', 'blink');
-    statusEl.innerText = 'Traduzindo...';
-  }
-  else if (state === 'falando') {
-    ledSpeak.classList.add('on');
-    statusEl.innerText = 'Respondendo...';
-  }
-  else if (state === 'erro') {
-    statusEl.innerText = 'Erro de conexão';
-  }
-  else {
-    statusEl.innerText = 'Aguardando...';
-  }
-}
+        <!-- Barra de status com LEDs -->
+        <div class="status-bar">
+            <div id="led-rec"   class="led led-rec"></div>
+            <div id="led-proc"  class="led led-proc"></div>
+            <div id="led-speak" class="led led-speak"></div>
+            <span id="status">Aguardando conexão...</span>
+        </div>
 
-function connectWS() {
-ws = new WebSocket('wss://nmt.up.railway.app/ws/translate');
+    </main>
 
-  ws.onopen = () => console.log('WS conectado');
-
-  ws.onmessage = async (msg) => {
-    if (typeof msg.data === 'string') {
-      const ctrl = JSON.parse(msg.data);
-      if (ctrl.type === 'status' && ctrl.message === 'processing') {
-        setState('processando');
-      }
-      return;
-    }
-
-    setState('falando');
-    const arrayBuffer = await msg.data.arrayBuffer();
-    const audioCtxPlay = new AudioContext({ sampleRate: 16000 });
-    const pcm = new Int16Array(arrayBuffer);
-    const float32 = new Float32Array(pcm.length);
-    for (let i = 0; i < pcm.length; i++) {
-      float32[i] = pcm[i] / 0x7fff;
-    }
-    const audioBuffer = audioCtxPlay.createBuffer(1, float32.length, 16000);
-    audioBuffer.copyToChannel(float32, 0);
-    const source = audioCtxPlay.createBufferSource();
-    source.buffer = audioBuffer;
-    source.connect(audioCtxPlay.destination);
-    source.start();
-    source.onended = () => setState('idle');
-  };
-
-  ws.onerror = () => {
-    stopAudio();
-    isRecording = false;
-    setState('erro');
-  };
-
-  ws.onclose = () => {
-    stopAudio();
-    isRecording = false;
-    setState('idle');
-  };
-}
-
-async function startAudio() {
-  stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-
-  audioContext = new (window.AudioContext || window.webkitAudioContext)();
-
-  input = audioContext.createMediaStreamSource(stream);
-
-  processor = audioContext.createScriptProcessor(4096, 1, 1);
-
-  processor.onaudioprocess = (e) => {
-    const floatData = e.inputBuffer.getChannelData(0);
-    const pcm16 = convertToPCM16(resample(floatData, audioContext.sampleRate, 16000));
-
-    if (ws && ws.readyState === 1) {
-      ws.send(pcm16);
-    }
-  };
-
-  input.connect(processor);
-  processor.connect(audioContext.destination);
-
-  setState('gravando');
-}
-
-function stopAudio() {
-  if (processor) processor.disconnect();
-  if (input) input.disconnect();
-  if (stream) stream.getTracks().forEach(t => t.stop());
-
-  if (ws && ws.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify({ type: 'end_of_speech' }));
-  }
-
-  setState('processando');
-}
-
-function convertToPCM16(float32) {
-  const buffer = new ArrayBuffer(float32.length * 2);
-  const view = new DataView(buffer);
-
-  for (let i = 0; i < float32.length; i++) {
-    let s = Math.max(-1, Math.min(1, float32[i]));
-    view.setInt16(i * 2, s * 0x7fff, true);
-  }
-
-  return buffer;
-}
-
-function resample(data, inRate, outRate) {
-  if (inRate === outRate) return data;
-
-  const ratio = inRate / outRate;
-  const newLen = Math.round(data.length / ratio);
-  const result = new Float32Array(newLen);
-
-  for (let i = 0; i < newLen; i++) {
-    result[i] = data[Math.floor(i * ratio)];
-  }
-
-  return result;
-}
-
-btn.addEventListener('mousedown', async () => {
-  if (isRecording) return;
-  isRecording = true;
-  if (!ws || ws.readyState !== WebSocket.OPEN) connectWS();
-  await startAudio();
-});
-
-btn.addEventListener('mouseup', () => {
-  if (!isRecording) return;
-  isRecording = false;
-  stopAudio();
-});
-
-btn.addEventListener('touchstart', async (e) => {
-  e.preventDefault();
-  if (isRecording) return;
-  isRecording = true;
-  if (!ws || ws.readyState !== WebSocket.OPEN) connectWS();
-  await startAudio();
-});
-
-btn.addEventListener('touchend', (e) => {
-  e.preventDefault();
-  if (!isRecording) return;
-  isRecording = false;
-  stopAudio();
-});
-
-navigator.mediaDevices.getUserMedia({ audio: true }).catch(() => {
-  setState('erro');
-  statusEl.innerText = 'Permita o microfone';
-});
-
-</script>
+    <script src="script.js"></script>
 </body>
 </html>

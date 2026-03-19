@@ -1,16 +1,23 @@
 """
-pipeline.py — Pipeline assíncrono: STT → Tradução → TTS.
+pipeline.py — Pipeline assíncrono: STT → Detecção de idioma → Tradução → TTS.
 
-Cada etapa é uma função async independente, permitindo substituição
-dos mocks pelas implementações reais sem alterar o fluxo principal.
+Fase 3 — Tradução bidirecional automática:
+    - Whisper detecta o idioma de cada fala automaticamente
+    - Sistema memoriza os 2 idiomas da sessão
+    - Cada fala é traduzida para "o outro idioma" da conversa
+    - Voz TTS selecionada automaticamente pelo idioma destino
 
 Fluxo:
-    bytes (PCM) ──► transcribe() ──► translate() ──► synthesize() ──► bytes (PCM)
-
-Fase 2 — Protótipo Virtual:
-    STT  : Groq Whisper Large v3  (via ai_services.py — Gemini Agent)
-    TRAD : LLaMA-3 8B via Groq    (via ai_services.py — Gemini Agent)
-    TTS  : Microsoft Edge TTS     (via ai_services.py — Gemini Agent)
+    PCM → transcribe() → (texto, idioma_origem)
+                              ↓
+                    SessionLanguageTracker
+                    detecta idioma_destino
+                              ↓
+                    translate(texto, destino)
+                              ↓
+                    synthesize(texto_traduzido, voz_destino)
+                              ↓
+                           PCM out
 """
 
 import asyncio
@@ -18,163 +25,173 @@ import logging
 import time
 from typing import Optional
 
-from config import AUDIO_CFG, TRANSLATION_CFG
+from config import AUDIO_CFG
 
-# ── Serviços reais entregues pelo Gemini Agent ─────────────────────────────
-# ai_services.py contém: transcribe_audio(), translate_text(), generate_speech()
-# Importação com fallback gracioso: se o módulo não existir ou falhar no import
-# (ex: dependências não instaladas), o pipeline cai para modo mock automaticamente
-# e loga um aviso claro — sem derrubar o servidor.
 try:
-    from ai_services import transcribe_audio, translate_text, generate_speech
+    from ai_services import (
+        transcribe_audio,
+        translate_text,
+        generate_speech,
+        VOICE_MAP,
+        LANG_LABEL_MAP,
+    )
     _AI_SERVICES_AVAILABLE = True
 except ImportError as _import_err:
     _AI_SERVICES_AVAILABLE = False
     logging.getLogger("pipeline").warning(
-        "⚠️  ai_services.py não disponível (%s). "
-        "Pipeline rodando em modo MOCK. "
-        "Instale as dependências: pip install groq edge-tts miniaudio",
-        _import_err,
+        "⚠️  ai_services.py não disponível (%s). Modo MOCK ativo.", _import_err
     )
 
 logger = logging.getLogger("pipeline")
 
 
 # ─────────────────────────────────────────────
-#  ETAPA 1 — STT (Speech-to-Text)
+#  RASTREADOR DE IDIOMAS POR SESSÃO
 # ─────────────────────────────────────────────
 
-async def transcribe(audio_pcm: bytes, session_id: str) -> Optional[str]:
+class SessionLanguageTracker:
     """
-    Converte áudio PCM bruto em texto transcrito via Groq Whisper Large v3.
+    Memoriza os idiomas detectados na sessão e resolve qual é o
+    idioma destino de cada nova fala.
 
-    Delega para ai_services.transcribe_audio() (implementado pelo Gemini Agent),
-    que internamente converte PCM → WAV em memória e envia à API da Groq.
+    Lógica de alternância automática:
+        - Primeira fala: idioma detectado = origem, destino = "en" (fallback)
+        - Segunda fala diferente: registra o segundo idioma
+        - Falas seguintes: sempre traduz para o idioma oposto ao detectado
 
-    Parâmetros:
-        audio_pcm   — Bytes de áudio PCM 16kHz, 16-bit, mono acumulados
-                      durante a janela de fala detectada pelo AudioBuffer.
-        session_id  — Identificador único da sessão WebSocket,
-                      usado para logging e rastreamento de latência.
+    Exemplo:
+        Fala 1: detecta "pt" → traduz para "en" (fallback, destino ainda desconhecido)
+        Fala 2: detecta "de" → registra par (pt ↔ de), traduz para "pt"
+        Fala 3: detecta "pt" → traduz para "de"
+        Fala 4: detecta "de" → traduz para "pt"
+    """
+
+    def __init__(self, session_id: str):
+        self.session_id = session_id
+        # Par de idiomas estabelecido na sessão: {lang_a, lang_b}
+        self._lang_pair: set[str] = set()
+        # Último idioma detectado
+        self._last_lang: Optional[str] = None
+
+    def resolve_target(self, detected_lang: str) -> str:
+        """
+        Dado o idioma detectado, retorna o idioma destino da tradução.
+
+        Parâmetros:
+            detected_lang — Código ISO do idioma detectado pelo Whisper (ex: "pt")
+
+        Retorno:
+            Código ISO do idioma destino (ex: "de")
+        """
+        # Adiciona o idioma detectado ao par da sessão
+        self._lang_pair.add(detected_lang)
+        self._last_lang = detected_lang
+
+        if len(self._lang_pair) >= 2:
+            # Par estabelecido: retorna o outro idioma
+            other = self._lang_pair - {detected_lang}
+            target = other.pop()
+            logger.info(
+                "[%s] 🔄 Par estabelecido: %s ↔ %s | Esta fala: %s → %s",
+                self.session_id,
+                *sorted(self._lang_pair),
+                detected_lang,
+                target,
+            )
+            return target
+        else:
+            # Ainda só 1 idioma conhecido — usa inglês como ponte
+            # (será substituído quando o segundo idioma aparecer)
+            fallback = "en" if detected_lang != "en" else "pt"
+            logger.info(
+                "[%s] 🔍 Idioma único até agora: %s → destino provisório: %s",
+                self.session_id, detected_lang, fallback,
+            )
+            return fallback
+
+    def get_voice_for(self, lang: str) -> str:
+        """Retorna a voz Edge TTS mais adequada para o idioma."""
+        return VOICE_MAP.get(lang, "en-US-ChristopherNeural") if _AI_SERVICES_AVAILABLE else "en-US-ChristopherNeural"
+
+    def get_label_for(self, lang: str) -> str:
+        """Retorna o nome por extenso do idioma para o prompt de tradução."""
+        return LANG_LABEL_MAP.get(lang, lang.capitalize()) if _AI_SERVICES_AVAILABLE else lang
+
+    @property
+    def lang_pair(self) -> set:
+        return self._lang_pair.copy()
+
+
+# ─────────────────────────────────────────────
+#  ETAPA 1 — STT COM DETECÇÃO DE IDIOMA
+# ─────────────────────────────────────────────
+
+async def transcribe(audio_pcm: bytes, session_id: str) -> tuple[Optional[str], Optional[str]]:
+    """
+    Transcreve áudio e detecta idioma automaticamente.
 
     Retorno:
-        Texto transcrito (str) ou None se áudio vazio, silêncio ou falha na API.
-
-    Modelo: whisper-large-v3 via Groq (latência esperada: ~300–600ms)
-    Fallback: mock estático se ai_services não estiver disponível.
+        Tupla (texto, idioma_iso) ou (None, None) em caso de falha/silêncio.
     """
     duracao_ms = (
         len(audio_pcm)
         / (AUDIO_CFG.sample_rate * AUDIO_CFG.channels * AUDIO_CFG.sample_width_bytes)
         * 1000
     )
-    logger.debug(
-        "[%s] STT | %d bytes (%.0f ms de áudio) → Groq Whisper Large v3",
-        session_id, len(audio_pcm), duracao_ms,
-    )
 
-    # Guarda de segurança: não envia áudio muito curto (< 300ms) para a API —
-    # Whisper retorna lixo ou erro com menos de ~0.3s de áudio.
     min_bytes = int(AUDIO_CFG.sample_rate * AUDIO_CFG.channels
                     * AUDIO_CFG.sample_width_bytes * 0.3)
     if len(audio_pcm) < min_bytes:
-        logger.info(
-            "[%s] STT ignorado: áudio muito curto (%.0fms < 300ms mínimo).",
-            session_id, duracao_ms,
-        )
-        return None
+        logger.info("[%s] STT ignorado: áudio muito curto (%.0fms).", session_id, duracao_ms)
+        return None, None
 
-    # ── Chamada real ao serviço do Gemini Agent ────────────────────────────
     if _AI_SERVICES_AVAILABLE:
-        # transcribe_audio() já trata exceções internamente e retorna "" em erro
-        resultado = await transcribe_audio(audio_pcm)
-        # Normaliza: string vazia → None (padrão do pipeline)
-        return resultado.strip() if resultado and resultado.strip() else None
+        texto, idioma = await transcribe_audio(audio_pcm)
+        if not texto or not texto.strip():
+            return None, None
+        return texto.strip(), idioma
 
-    # ── Fallback mock (ai_services indisponível) ───────────────────────────
-    logger.warning("[%s] STT em modo MOCK — ai_services não carregado.", session_id)
-    await asyncio.sleep(0)
-    return "Olá, como você está?"
+    # Mock
+    return "Olá, como você está?", "pt"
 
 
 # ─────────────────────────────────────────────
-#  ETAPA 2 — TRADUÇÃO
+#  ETAPA 2 — TRADUÇÃO COM IDIOMA DINÂMICO
 # ─────────────────────────────────────────────
 
-async def translate(text: str, session_id: str) -> Optional[str]:
+async def translate(text: str, target_lang_label: str, session_id: str) -> Optional[str]:
     """
-    Traduz texto do idioma de origem para o idioma de destino via LLaMA-3 (Groq).
-
-    Delega para ai_services.translate_text() (implementado pelo Gemini Agent),
-    que usa o modelo llama3-8b-8192 na Groq com prompt de tradutor simultâneo.
+    Traduz texto para o idioma destino resolvido pelo SessionLanguageTracker.
 
     Parâmetros:
-        text        — Texto transcrito pela etapa STT.
-        session_id  — Identificador único da sessão WebSocket.
-
-    Retorno:
-        Texto traduzido (str) ou None em caso de falha da API.
-
-    Modelo: llama3-8b-8192 via Groq (latência esperada: ~200–400ms)
-    Idioma destino: configurado em TRANSLATION_CFG.target_lang_label (ex: "Inglês")
-    Fallback: mock estático se ai_services não estiver disponível.
+        text             — Texto transcrito
+        target_lang_label — Nome do idioma destino (ex: "German")
+        session_id       — ID da sessão para logging
     """
-    logger.debug(
-        "[%s] Tradução | '%s' (%s → %s) via LLaMA-3",
-        session_id, text,
-        TRANSLATION_CFG.source_lang,
-        TRANSLATION_CFG.target_lang,
-    )
-
-    # ── Chamada real ao serviço do Gemini Agent ────────────────────────────
     if _AI_SERVICES_AVAILABLE:
-        resultado = await translate_text(text, target_lang=TRANSLATION_CFG.target_lang_label)
+        resultado = await translate_text(text, target_lang=target_lang_label)
         return resultado.strip() if resultado and resultado.strip() else None
 
-    # ── Fallback mock ──────────────────────────────────────────────────────
-    logger.warning("[%s] Tradução em modo MOCK — ai_services não carregado.", session_id)
-    await asyncio.sleep(0)
     return "Hello, how are you?"
 
 
 # ─────────────────────────────────────────────
-#  ETAPA 3 — TTS (Text-to-Speech)
+#  ETAPA 3 — TTS COM VOZ AUTOMÁTICA
 # ─────────────────────────────────────────────
 
-async def synthesize(text: str, session_id: str) -> Optional[bytes]:
+async def synthesize(text: str, voice: str, session_id: str) -> Optional[bytes]:
     """
-    Converte texto traduzido em áudio PCM via Edge TTS (Microsoft), sem FFmpeg.
-
-    Delega para ai_services.generate_speech() (implementado pelo Gemini Agent),
-    que usa edge-tts para gerar MP3 e miniaudio para decodificar para PCM 16kHz
-    diretamente em memória — sem dependências de sistema externas.
+    Gera áudio com a voz correta para o idioma destino.
 
     Parâmetros:
-        text        — Texto traduzido pela etapa anterior.
-        session_id  — Identificador único da sessão WebSocket.
-
-    Retorno:
-        Bytes de áudio PCM 16kHz, 16-bit, mono prontos para envio ao browser,
-        ou None em caso de falha.
-
-    Voz: configurada em TRANSLATION_CFG.tts_voice (ex: "en-US-ChristopherNeural")
-    Latência esperada: ~400–800ms (geração Edge TTS + decodificação miniaudio)
-    Fallback: silêncio PCM de 1s se ai_services não estiver disponível.
+        text      — Texto traduzido
+        voice     — Voz Edge TTS selecionada pelo tracker (ex: "de-DE-ConradNeural")
+        session_id — ID da sessão para logging
     """
-    logger.debug(
-        "[%s] TTS | '%s' → voz: %s",
-        session_id, text[:60], TRANSLATION_CFG.tts_voice,
-    )
-
-    # ── Chamada real ao serviço do Gemini Agent ────────────────────────────
     if _AI_SERVICES_AVAILABLE:
-        resultado = await generate_speech(text, voice=TRANSLATION_CFG.tts_voice)
-        # generate_speech() retorna b"" em erro — normaliza para None
+        resultado = await generate_speech(text, voice=voice)
         return resultado if resultado else None
 
-    # ── Fallback mock: silêncio PCM de 1 segundo ──────────────────────────
-    logger.warning("[%s] TTS em modo MOCK — ai_services não carregado.", session_id)
-    await asyncio.sleep(0)
     silence_samples = AUDIO_CFG.sample_rate * AUDIO_CFG.channels
     return b'\x00\x00' * silence_samples
 
@@ -183,80 +200,93 @@ async def synthesize(text: str, session_id: str) -> Optional[bytes]:
 #  ORQUESTRADOR DO PIPELINE
 # ─────────────────────────────────────────────
 
-async def run_pipeline(audio_pcm: bytes, session_id: str) -> Optional[bytes]:
+async def run_pipeline(
+    audio_pcm: bytes,
+    session_id: str,
+    lang_tracker: SessionLanguageTracker,
+) -> tuple[Optional[bytes], Optional[dict]]:
     """
-    Orquestra as três etapas do pipeline de tradução em sequência.
-
-    Mede e loga o tempo total de cada etapa para monitoramento
-    do orçamento de latência de 3 segundos.
+    Orquestra STT → detecção de idioma → tradução → TTS.
 
     Parâmetros:
-        audio_pcm   — Chunk(s) de áudio PCM acumulados de uma fala completa.
-        session_id  — Identificador único da sessão WebSocket.
+        audio_pcm    — Bytes PCM da fala completa
+        session_id   — ID da sessão WebSocket
+        lang_tracker — Instância do rastreador de idiomas da sessão
 
     Retorno:
-        Bytes de áudio traduzido e sintetizado, ou None se qualquer
-        etapa falhar (falhas são logadas mas não propagam exceção,
-        para manter a conexão WebSocket ativa).
+        Tupla (audio_bytes, metadata) onde metadata contém os textos
+        e idiomas para exibir no frontend, ou (None, None) em caso de falha.
     """
     t_start = time.monotonic()
 
     try:
-        # ── Etapa 1: STT ──────────────────────────────────────────────────
+        # ── Etapa 1: STT + detecção de idioma ─────────────────────────────
         t0 = time.monotonic()
-        transcript = await transcribe(audio_pcm, session_id)
+        transcript, lang_origem = await transcribe(audio_pcm, session_id)
         t_stt = time.monotonic() - t0
 
-        if not transcript:
-            logger.info("[%s] STT retornou vazio — possível silêncio.", session_id)
-            return None
+        if not transcript or not lang_origem:
+            logger.info("[%s] STT vazio — silêncio ou áudio inválido.", session_id)
+            return None, None
 
-        logger.info("[%s] STT (%.0fms): '%s'", session_id, t_stt * 1000, transcript)
+        logger.info(
+            "[%s] STT (%.0fms): '%s' [%s]",
+            session_id, t_stt * 1000, transcript, lang_origem
+        )
 
-        # ── Etapa 2: Tradução ─────────────────────────────────────────────
+        # ── Resolução automática do idioma destino ─────────────────────────
+        lang_destino = lang_tracker.resolve_target(lang_origem)
+        lang_destino_label = lang_tracker.get_label_for(lang_destino)
+        voz_destino = lang_tracker.get_voice_for(lang_destino)
+
+        # ── Etapa 2: Tradução ──────────────────────────────────────────────
         t0 = time.monotonic()
-        translated = await translate(transcript, session_id)
+        translated = await translate(transcript, lang_destino_label, session_id)
         t_translate = time.monotonic() - t0
 
         if not translated:
             logger.warning("[%s] Tradução retornou vazio.", session_id)
-            return None
+            return None, None
 
         logger.info(
-            "[%s] Tradução (%.0fms): '%s'", session_id, t_translate * 1000, translated
+            "[%s] Tradução (%.0fms): [%s→%s] '%s'",
+            session_id, t_translate * 1000,
+            lang_origem, lang_destino, translated
         )
 
-        # ── Etapa 3: TTS ──────────────────────────────────────────────────
+        # ── Etapa 3: TTS ───────────────────────────────────────────────────
         t0 = time.monotonic()
-        audio_out = await synthesize(translated, session_id)
+        audio_out = await synthesize(translated, voz_destino, session_id)
         t_tts = time.monotonic() - t0
 
         if audio_out is None:
             logger.warning("[%s] TTS retornou vazio.", session_id)
-            return None
+            return None, None
 
-        # ── Relatório de latência ─────────────────────────────────────────
+        # ── Relatório de latência ──────────────────────────────────────────
         t_total = time.monotonic() - t_start
         logger.info(
-            "[%s] ✅ Pipeline completo | Total: %.0fms "
-            "(STT: %.0fms | Tradução: %.0fms | TTS: %.0fms) | Saída: %d bytes",
-            session_id,
-            t_total * 1000,
-            t_stt * 1000,
-            t_translate * 1000,
-            t_tts * 1000,
+            "[%s] ✅ Pipeline | %.0fms total (STT:%.0f Trad:%.0f TTS:%.0f) | %d bytes",
+            session_id, t_total * 1000,
+            t_stt * 1000, t_translate * 1000, t_tts * 1000,
             len(audio_out),
         )
 
         if t_total > 3.0:
-            logger.warning(
-                "[%s] ⚠️ LATÊNCIA EXCEDIDA: %.1fs > 3.0s", session_id, t_total
-            )
+            logger.warning("[%s] ⚠️ LATÊNCIA EXCEDIDA: %.1fs", session_id, t_total)
 
-        return audio_out
+        # Metadata enviada ao frontend para exibir na interface
+        metadata = {
+            "type": "transcript",
+            "original": transcript,
+            "translated": translated,
+            "lang_from": lang_origem,
+            "lang_to": lang_destino,
+            "lang_pair": list(lang_tracker.lang_pair),
+        }
 
-    except Exception as exc:  # noqa: BLE001
-        # Captura genérica intencional: não derruba a conexão WebSocket
-        # por falha pontual de pipeline.
+        return audio_out, metadata
+
+    except Exception as exc:
         logger.error("[%s] ❌ Erro no pipeline: %s", session_id, exc, exc_info=True)
-        return None
+        return None, None
