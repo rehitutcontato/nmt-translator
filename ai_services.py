@@ -153,11 +153,13 @@ async def translate_text(text: str, target_lang: str = "English") -> str:
                 {
                     "role": "system",
                     "content": (
-                        f"You are a translation engine. "
-                        f"Translate the following text to {target_lang}. "
-                        f"Output ONLY the translated text. "
-                        f"Do NOT answer questions, do NOT add explanations, "
-                        f"do NOT add notes. Just translate word by word."
+                        f"You are a professional human interpreter — not a translation machine. "
+                        f"You understand language, tone, cultural context, and human intent. "
+                        f"Translate the text to {target_lang}, then add a brief interpretation. "
+                        f"Always respond in EXACTLY this format:\n\n"
+                        f"TRANSLATION: [the direct translation]\n"
+                        f"INTERPRETER: [1-2 sentences on tone, intent, or cultural subtext — "
+                        f"skip this line entirely if the phrase is simple and needs no context]"
                     )
                 },
                 {"role": "user", "content": text}

@@ -243,20 +243,33 @@ async def run_pipeline(
 
         lang_destino_label = lang_tracker.get_label_for(lang_destino)
         voz_destino = lang_tracker.get_voice_for(lang_destino)
-        # ── Etapa 2: Tradução ──────────────────────────────────────────────
+        # ── Etapa 2: Tradução + Interpretação ────────────────────────────────
         t0 = time.monotonic()
-        translated = await translate(transcript, lang_destino_label, session_id)
+        raw_response = await translate(transcript, lang_destino_label, session_id)
         t_translate = time.monotonic() - t0
 
-        if not translated:
+        if not raw_response:
             logger.warning("[%s] Tradução retornou vazio.", session_id)
             return None, None
+
+        # Separa TRANSLATION: do INTERPRETER: para TTS falar só a tradução
+        translated   = raw_response  # fallback: resposta completa
+        interpretation = None
+
+        if "TRANSLATION:" in raw_response:
+            parts = raw_response.split("INTERPRETER:")
+            translation_part = parts[0].replace("TRANSLATION:", "").strip()
+            translated = translation_part
+            if len(parts) > 1:
+                interpretation = parts[1].strip()
 
         logger.info(
             "[%s] Tradução (%.0fms): [%s→%s] '%s'",
             session_id, t_translate * 1000,
             lang_origem, lang_destino, translated
         )
+        if interpretation:
+            logger.info("[%s] 🧠 Contexto: %s", session_id, interpretation)
 
         # ── Etapa 3: TTS ───────────────────────────────────────────────────
         t0 = time.monotonic()
@@ -284,6 +297,7 @@ async def run_pipeline(
             "type": "transcript",
             "original": transcript,
             "translated": translated,
+            "interpretation": interpretation,  # None se frase simples
             "lang_from": lang_origem,
             "lang_to": lang_destino,
             "lang_pair": list(lang_tracker.lang_pair),

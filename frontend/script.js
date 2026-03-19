@@ -361,6 +361,18 @@ function connectWS() {
             if (ctrl.type === 'transcript') {
                 txtOriginal.textContent   = `[${(ctrl.lang_from||'?').toUpperCase()}]  ${ctrl.original}`;
                 txtTranslated.textContent = `[${(ctrl.lang_to  ||'?').toUpperCase()}]  ${ctrl.translated}`;
+
+                // Exibe interpretação contextual (se houver)
+                const interpEl = document.getElementById('txt-interpretation');
+                if (interpEl) {
+                    if (ctrl.interpretation) {
+                        interpEl.textContent = '🧠 ' + ctrl.interpretation;
+                        interpEl.style.display = 'block';
+                    } else {
+                        interpEl.style.display = 'none';
+                    }
+                }
+
                 updateMainLangDisplay(ctrl.lang_from, ctrl.lang_to, ctrl.lang_pair);
 
                 // Se estava detectando no painel, aplica o idioma detectado
