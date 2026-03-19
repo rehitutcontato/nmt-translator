@@ -449,3 +449,62 @@ h1 {
 @media (max-width: 400px) {
     .side-panel { width: 100vw; }
 }
+
+/* ── Dois botões de detecção (iniciar / parar) ── */
+.detect-row {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+.detect-start-btn,
+.detect-stop-btn {
+    flex: 1;
+    padding: 11px 8px;
+    border-radius: 12px;
+    border: 1px solid var(--glass-border);
+    background: rgba(255,255,255,0.04);
+    color: var(--text-main);
+    font-family: inherit;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.detect-start-btn:hover:not(:disabled) {
+    background: rgba(16,185,129,0.12);
+    border-color: var(--person-a);
+    color: var(--person-a);
+}
+
+.detect-start-btn.detecting {
+    background: rgba(234,179,8,0.12);
+    border-color: #eab308;
+    color: #eab308;
+    animation: ledBlink 0.8s infinite;
+}
+
+.detect-stop-btn:hover:not(:disabled) {
+    background: rgba(239,68,68,0.12);
+    border-color: #ef4444;
+    color: #ef4444;
+}
+
+.detect-start-btn:disabled,
+.detect-stop-btn:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+}
+
+/* Resultado da detecção */
+.detect-result {
+    font-size: 0.85rem;
+    color: var(--text-dim);
+    margin-bottom: 10px;
+    min-height: 20px;
+    padding: 0 2px;
+}
+.detect-result.found {
+    color: #10b981;
+    font-weight: 600;
+}

@@ -33,10 +33,15 @@
             <!-- Pessoa A -->
             <div class="person-section section-a">
                 <h3>🟢 Pessoa A</h3>
-                <button class="detect-btn" id="detect-btn-a">
-                    <span id="detect-icon-a">🎙️</span>
-                    <span id="detect-label-a">Falar para detectar</span>
-                </button>
+                <div class="detect-row">
+                    <button class="detect-start-btn detect-start-a" id="detect-start-a">
+                        🎙️ Iniciar
+                    </button>
+                    <button class="detect-stop-btn" id="detect-stop-a" disabled>
+                        ⏹ Parar
+                    </button>
+                </div>
+                <div class="detect-result" id="detect-result-a">—</div>
                 <select class="lang-select" id="select-a">
                     <option value="">— ou escolha manualmente —</option>
                 </select>
@@ -47,10 +52,15 @@
             <!-- Pessoa B -->
             <div class="person-section section-b">
                 <h3>🔵 Pessoa B</h3>
-                <button class="detect-btn" id="detect-btn-b">
-                    <span id="detect-icon-b">🎙️</span>
-                    <span id="detect-label-b">Falar para detectar</span>
-                </button>
+                <div class="detect-row">
+                    <button class="detect-start-btn detect-start-b" id="detect-start-b">
+                        🎙️ Iniciar
+                    </button>
+                    <button class="detect-stop-btn" id="detect-stop-b" disabled>
+                        ⏹ Parar
+                    </button>
+                </div>
+                <div class="detect-result" id="detect-result-b">—</div>
                 <select class="lang-select" id="select-b">
                     <option value="">— ou escolha manualmente —</option>
                 </select>

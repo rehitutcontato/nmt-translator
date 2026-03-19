@@ -43,14 +43,10 @@ const panelOverlay = document.getElementById('panel-overlay');
 const panelClose   = document.getElementById('panel-close');
 const selectA      = document.getElementById('select-a');
 const selectB      = document.getElementById('select-b');
-const detectBtnA   = document.getElementById('detect-btn-a');
-const detectBtnB   = document.getElementById('detect-btn-b');
-const detectIconA  = document.getElementById('detect-icon-a');
-const detectLabelA = document.getElementById('detect-label-a');
-const detectIconB  = document.getElementById('detect-icon-b');
-const detectLabelB = document.getElementById('detect-label-b');
 const pairStatus   = document.getElementById('pair-status');
 const applyBtn     = document.getElementById('apply-btn');
+const detectResultA = document.getElementById('detect-result-a');
+const detectResultB = document.getElementById('detect-result-b');
 
 // ── Estado global ─────────────────────────────────────────────────────────────
 let ws           = null;
@@ -161,29 +157,31 @@ selectB.addEventListener('change', () => {
 //  DETECÇÃO DE IDIOMA NO PAINEL (botão "falar para detectar")
 // =============================================================================
 
-// Estados visuais do botão de detecção
+// Atualiza resultado visual da detecção no painel
 function setDetectState(person, state, detectedCode = null) {
-    const btn   = person === 'a' ? detectBtnA   : detectBtnB;
-    const icon  = person === 'a' ? detectIconA  : detectIconB;
-    const label = person === 'a' ? detectLabelA : detectLabelB;
-    const sel   = person === 'a' ? selectA       : selectB;
-
-    btn.classList.remove('detecting', 'detected');
+    const resultEl  = person === 'a' ? detectResultA : detectResultB;
+    const sel       = person === 'a' ? selectA        : selectB;
+    const startBtn  = document.getElementById('detect-start-' + person);
+    const stopBtn   = document.getElementById('detect-stop-'  + person);
 
     if (state === 'idle') {
-        icon.textContent  = '🎙️';
-        label.textContent = 'Falar para detectar';
+        resultEl.textContent = '—';
+        resultEl.classList.remove('found');
+        startBtn.disabled = false;
+        startBtn.classList.remove('detecting');
+        stopBtn.disabled  = true;
     } else if (state === 'detecting') {
-        btn.classList.add('detecting');
-        icon.textContent  = '⏺️';
-        label.textContent = 'Ouvindo... (solte para parar)';
+        resultEl.textContent = 'Ouvindo...';
+        resultEl.classList.remove('found');
     } else if (state === 'detected' && detectedCode) {
-        btn.classList.add('detected');
         const lang = LANGUAGES.find(l => l.code === detectedCode);
-        icon.textContent  = lang ? lang.flag : '✅';
-        label.textContent = lang ? `${lang.label} detectado` : detectedCode.toUpperCase();
-        // Sincroniza o select
+        resultEl.textContent = lang ? `${lang.flag}  ${lang.label} detectado` : detectedCode.toUpperCase();
+        resultEl.classList.add('found');
+        // Sincroniza o select e reseta botões
         sel.value = detectedCode;
+        startBtn.disabled = false;
+        startBtn.classList.remove('detecting');
+        stopBtn.disabled  = true;
     }
 }
 
@@ -238,13 +236,25 @@ function stopDetection() {
     // O idioma detectado chegará via ws.onmessage → transcript.lang_from
 }
 
-// Eventos dos botões de detecção
-[{ btn: detectBtnA, p: 'a' }, { btn: detectBtnB, p: 'b' }].forEach(({ btn, p }) => {
-    btn.addEventListener('mousedown',  async () => await startDetection(p));
-    btn.addEventListener('mouseup',    () => stopDetection());
-    btn.addEventListener('mouseleave', () => { if (detectingPerson === p) stopDetection(); });
-    btn.addEventListener('touchstart', async (e) => { e.preventDefault(); await startDetection(p); });
-    btn.addEventListener('touchend',   (e)       => { e.preventDefault(); stopDetection(); });
+// Eventos dos botões de detecção — iniciar e parar separados
+['a', 'b'].forEach(p => {
+    const startBtn  = document.getElementById('detect-start-' + p);
+    const stopBtn   = document.getElementById('detect-stop-'  + p);
+
+    startBtn.addEventListener('click', async () => {
+        if (isRecording) return;
+        startBtn.disabled = true;
+        startBtn.classList.add('detecting');
+        stopBtn.disabled  = false;
+        await startDetection(p);
+    });
+
+    stopBtn.addEventListener('click', () => {
+        stopDetection();
+        startBtn.disabled = false;
+        startBtn.classList.remove('detecting');
+        stopBtn.disabled  = true;
+    });
 });
 
 // =============================================================================
