@@ -7,11 +7,71 @@
     <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
+
+    <!-- ── Botão de abrir painel ─────────────────────────────────────────── -->
+    <button class="settings-btn" id="settings-btn" title="Configurar idiomas">
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24"
+             fill="none" stroke="currentColor" stroke-width="2"
+             stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="3"/>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+        </svg>
+    </button>
+
+    <!-- ── Overlay ───────────────────────────────────────────────────────── -->
+    <div class="panel-overlay" id="panel-overlay"></div>
+
+    <!-- ── Painel lateral de idiomas ─────────────────────────────────────── -->
+    <aside class="side-panel" id="side-panel">
+        <div class="panel-header">
+            <h2>Idiomas</h2>
+            <button class="panel-close" id="panel-close">✕</button>
+        </div>
+
+        <div class="panel-body">
+
+            <!-- Pessoa A -->
+            <div class="person-section section-a">
+                <h3>🟢 Pessoa A</h3>
+                <button class="detect-btn" id="detect-btn-a">
+                    <span id="detect-icon-a">🎙️</span>
+                    <span id="detect-label-a">Falar para detectar</span>
+                </button>
+                <select class="lang-select" id="select-a">
+                    <option value="">— ou escolha manualmente —</option>
+                </select>
+            </div>
+
+            <div class="panel-divider"></div>
+
+            <!-- Pessoa B -->
+            <div class="person-section section-b">
+                <h3>🔵 Pessoa B</h3>
+                <button class="detect-btn" id="detect-btn-b">
+                    <span id="detect-icon-b">🎙️</span>
+                    <span id="detect-label-b">Falar para detectar</span>
+                </button>
+                <select class="lang-select" id="select-b">
+                    <option value="">— ou escolha manualmente —</option>
+                </select>
+            </div>
+
+            <div class="panel-divider"></div>
+
+            <!-- Status do par -->
+            <div id="pair-status">Par de idiomas não configurado</div>
+
+            <!-- Botão aplicar -->
+            <button class="apply-btn" id="apply-btn">Aplicar e Fechar</button>
+
+        </div>
+    </aside>
+
+    <!-- ── App principal ─────────────────────────────────────────────────── -->
     <main class="app-container">
 
         <h1>Tradutor Neural</h1>
 
-        <!-- Display dos idiomas detectados automaticamente -->
         <div id="lang-display">
             <span class="lang" id="lang-a">?</span>
             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24"
@@ -24,9 +84,7 @@
             <span class="lang" id="lang-b">?</span>
         </div>
 
-        <!-- Hub dos botões de fala -->
         <div class="buttons-hub">
-
             <div class="mic-zone" id="zone-a">
                 <div class="pulse-wave pulse-a" id="pulse-a"></div>
                 <button class="btn-speak btn-a" id="btn-a" aria-label="Falar como Pessoa A">
@@ -52,17 +110,14 @@
                     </svg>
                 </button>
             </div>
-
         </div>
 
-        <!-- Resultado da tradução -->
         <div class="transcript-card">
             <div class="box-title">Resultado da Tradução</div>
             <div class="original-text"   id="txt-original">—</div>
             <div class="translated-text" id="txt-translated">—</div>
         </div>
 
-        <!-- Barra de status com LEDs -->
         <div class="status-bar">
             <div id="led-rec"   class="led led-rec"></div>
             <div id="led-proc"  class="led led-proc"></div>

@@ -1,18 +1,26 @@
 // =============================================================================
 //  TRADUTOR NEURAL BIDIRECIONAL — script.js
-//  Integração completa com o backend FastAPI + WebSocket
-//
-//  Protocolo backend (websocket_handler.py):
-//    ENVIA  bytes PCM 16kHz 16-bit mono     → chunks de áudio
-//    ENVIA  JSON { type: "end_of_speech" }  → sinaliza fim de fala
-//    ENVIA  JSON { type: "ping" }           → keepalive
-//
-//    RECEBE JSON { type: "status", message: "processing" }
-//    RECEBE JSON { type: "status", message: "no_speech_detected" }
-//    RECEBE JSON { type: "transcript", original, translated,
-//                  lang_from, lang_to, lang_pair }
-//    RECEBE bytes PCM 16kHz 16-bit mono     → áudio traduzido para reproduzir
 // =============================================================================
+
+// ── Lista de idiomas disponíveis ──────────────────────────────────────────────
+// Sincronizado com VOICE_MAP e LANG_LABEL_MAP do ai_services.py
+const LANGUAGES = [
+    { code: 'pt', label: 'Português', flag: '🇧🇷' },
+    { code: 'en', label: 'English',   flag: '🇺🇸' },
+    { code: 'de', label: 'Deutsch',   flag: '🇩🇪' },
+    { code: 'es', label: 'Español',   flag: '🇪🇸' },
+    { code: 'fr', label: 'Français',  flag: '🇫🇷' },
+    { code: 'it', label: 'Italiano',  flag: '🇮🇹' },
+    { code: 'ja', label: '日本語',    flag: '🇯🇵' },
+    { code: 'zh', label: '中文',      flag: '🇨🇳' },
+    { code: 'ko', label: '한국어',    flag: '🇰🇷' },
+    { code: 'ru', label: 'Русский',   flag: '🇷🇺' },
+    { code: 'ar', label: 'العربية',   flag: '🇸🇦' },
+    { code: 'hi', label: 'हिन्दी',   flag: '🇮🇳' },
+    { code: 'nl', label: 'Nederlands',flag: '🇳🇱' },
+    { code: 'pl', label: 'Polski',    flag: '🇵🇱' },
+    { code: 'tr', label: 'Türkçe',    flag: '🇹🇷' },
+];
 
 // ── Elementos do DOM ──────────────────────────────────────────────────────────
 const statusEl      = document.getElementById('status');
@@ -28,6 +36,22 @@ const btnB          = document.getElementById('btn-b');
 const pulseA        = document.getElementById('pulse-a');
 const pulseB        = document.getElementById('pulse-b');
 
+// Painel lateral
+const settingsBtn  = document.getElementById('settings-btn');
+const sidePanel    = document.getElementById('side-panel');
+const panelOverlay = document.getElementById('panel-overlay');
+const panelClose   = document.getElementById('panel-close');
+const selectA      = document.getElementById('select-a');
+const selectB      = document.getElementById('select-b');
+const detectBtnA   = document.getElementById('detect-btn-a');
+const detectBtnB   = document.getElementById('detect-btn-b');
+const detectIconA  = document.getElementById('detect-icon-a');
+const detectLabelA = document.getElementById('detect-label-a');
+const detectIconB  = document.getElementById('detect-icon-b');
+const detectLabelB = document.getElementById('detect-label-b');
+const pairStatus   = document.getElementById('pair-status');
+const applyBtn     = document.getElementById('apply-btn');
+
 // ── Estado global ─────────────────────────────────────────────────────────────
 let ws           = null;
 let audioContext = null;
@@ -35,9 +59,12 @@ let processor    = null;
 let input        = null;
 let stream       = null;
 let isRecording  = false;
-let activePerson = null;   // 'a' ou 'b'
-let knownLangs   = [];     // par de idiomas detectados na sessão
-let pingInterval = null;   // keepalive
+let activePerson = null;
+let pingInterval = null;
+
+// Par de idiomas da sessão — pode vir da detecção automática OU da seleção manual
+// { a: 'pt', b: 'de' } — null = ainda não configurado
+let langPair = { a: null, b: null };
 
 // URL automática: local → ws://, nuvem → wss://
 const WS_URL = location.hostname === 'localhost'
@@ -45,10 +72,185 @@ const WS_URL = location.hostname === 'localhost'
     : `wss://${location.host}/ws/translate`;
 
 // =============================================================================
+//  PAINEL LATERAL — inicialização e controles
+// =============================================================================
+
+// Popula os selects com todos os idiomas disponíveis
+function populateSelects() {
+    LANGUAGES.forEach(lang => {
+        [selectA, selectB].forEach(sel => {
+            const opt = document.createElement('option');
+            opt.value = lang.code;
+            opt.textContent = `${lang.flag}  ${lang.label}`;
+            sel.appendChild(opt);
+        });
+    });
+}
+
+// Abre/fecha o painel
+function openPanel()  {
+    sidePanel.classList.add('open');
+    panelOverlay.classList.add('open');
+}
+function closePanel() {
+    sidePanel.classList.remove('open');
+    panelOverlay.classList.remove('open');
+    // Para qualquer detecção em andamento ao fechar
+    if (isRecording) stopAudio();
+}
+
+settingsBtn.addEventListener('click', openPanel);
+panelClose.addEventListener('click',  closePanel);
+panelOverlay.addEventListener('click', closePanel);
+
+// Atualiza o status do par no painel
+function updatePairStatus() {
+    const a = langPair.a ? LANGUAGES.find(l => l.code === langPair.a) : null;
+    const b = langPair.b ? LANGUAGES.find(l => l.code === langPair.b) : null;
+
+    if (a && b) {
+        pairStatus.textContent = `${a.flag} ${a.label}  ⇄  ${b.flag} ${b.label}`;
+        pairStatus.classList.add('ready');
+    } else if (a) {
+        pairStatus.textContent = `${a.flag} ${a.label}  ⇄  ? (aguardando Pessoa B)`;
+        pairStatus.classList.remove('ready');
+    } else {
+        pairStatus.textContent = 'Par de idiomas não configurado';
+        pairStatus.classList.remove('ready');
+    }
+}
+
+// Aplica seleção manual e fecha painel
+applyBtn.addEventListener('click', () => {
+    const valA = selectA.value;
+    const valB = selectB.value;
+
+    if (valA) langPair.a = valA;
+    if (valB) langPair.b = valB;
+
+    updatePairStatus();
+    updateMainLangDisplay();
+    closePanel();
+
+    // Se par completo, atualiza status principal
+    if (langPair.a && langPair.b) {
+        const a = LANGUAGES.find(l => l.code === langPair.a);
+        const b = LANGUAGES.find(l => l.code === langPair.b);
+        statusEl.textContent = `Par configurado: ${a.flag} ⇄ ${b.flag}`;
+        setTimeout(() => setState('idle'), 2000);
+    }
+});
+
+// Sincroniza select → langPair em tempo real (feedback imediato)
+selectA.addEventListener('change', () => {
+    if (selectA.value) {
+        langPair.a = selectA.value;
+        setDetectState('a', 'detected', selectA.value);
+        updatePairStatus();
+    }
+});
+selectB.addEventListener('change', () => {
+    if (selectB.value) {
+        langPair.b = selectB.value;
+        setDetectState('b', 'detected', selectB.value);
+        updatePairStatus();
+    }
+});
+
+// =============================================================================
+//  DETECÇÃO DE IDIOMA NO PAINEL (botão "falar para detectar")
+// =============================================================================
+
+// Estados visuais do botão de detecção
+function setDetectState(person, state, detectedCode = null) {
+    const btn   = person === 'a' ? detectBtnA   : detectBtnB;
+    const icon  = person === 'a' ? detectIconA  : detectIconB;
+    const label = person === 'a' ? detectLabelA : detectLabelB;
+    const sel   = person === 'a' ? selectA       : selectB;
+
+    btn.classList.remove('detecting', 'detected');
+
+    if (state === 'idle') {
+        icon.textContent  = '🎙️';
+        label.textContent = 'Falar para detectar';
+    } else if (state === 'detecting') {
+        btn.classList.add('detecting');
+        icon.textContent  = '⏺️';
+        label.textContent = 'Ouvindo... (solte para parar)';
+    } else if (state === 'detected' && detectedCode) {
+        btn.classList.add('detected');
+        const lang = LANGUAGES.find(l => l.code === detectedCode);
+        icon.textContent  = lang ? lang.flag : '✅';
+        label.textContent = lang ? `${lang.label} detectado` : detectedCode.toUpperCase();
+        // Sincroniza o select
+        sel.value = detectedCode;
+    }
+}
+
+// Captura rápida para detecção de idioma no painel
+let detectStream = null, detectContext = null, detectProcessor = null;
+let detectingPerson = null;
+
+async function startDetection(person) {
+    if (isRecording) return;
+    detectingPerson = person;
+    isRecording = true;
+    setDetectState(person, 'detecting');
+
+    // Garante WebSocket para o backend detectar o idioma via Whisper
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+        connectWS();
+        await waitForWS();
+    }
+
+    try {
+        detectStream    = await navigator.mediaDevices.getUserMedia({ audio: true });
+        detectContext   = new (window.AudioContext || window.webkitAudioContext)();
+        const src       = detectContext.createMediaStreamSource(detectStream);
+        detectProcessor = detectContext.createScriptProcessor(4096, 1, 1);
+
+        detectProcessor.onaudioprocess = (e) => {
+            if (!isRecording) return;
+            const pcm16 = convertToPCM16(resample(e.inputBuffer.getChannelData(0), detectContext.sampleRate, 16000));
+            if (ws && ws.readyState === WebSocket.OPEN) ws.send(pcm16);
+        };
+
+        src.connect(detectProcessor);
+        detectProcessor.connect(detectContext.destination);
+    } catch(e) {
+        isRecording = false;
+        detectingPerson = null;
+        setDetectState(person, 'idle');
+    }
+}
+
+function stopDetection() {
+    if (!isRecording || !detectingPerson) return;
+    isRecording = false;
+
+    if (detectProcessor) { try { detectProcessor.disconnect(); } catch(e){} detectProcessor = null; }
+    if (detectStream)    { detectStream.getTracks().forEach(t => t.stop()); detectStream = null; }
+    if (detectContext)   { try { detectContext.close(); } catch(e){} detectContext = null; }
+
+    if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'end_of_speech' }));
+    }
+    // O idioma detectado chegará via ws.onmessage → transcript.lang_from
+}
+
+// Eventos dos botões de detecção
+[{ btn: detectBtnA, p: 'a' }, { btn: detectBtnB, p: 'b' }].forEach(({ btn, p }) => {
+    btn.addEventListener('mousedown',  async () => await startDetection(p));
+    btn.addEventListener('mouseup',    () => stopDetection());
+    btn.addEventListener('mouseleave', () => { if (detectingPerson === p) stopDetection(); });
+    btn.addEventListener('touchstart', async (e) => { e.preventDefault(); await startDetection(p); });
+    btn.addEventListener('touchend',   (e)       => { e.preventDefault(); stopDetection(); });
+});
+
+// =============================================================================
 //  MÁQUINA DE ESTADOS VISUAIS
 // =============================================================================
 function setState(state) {
-    // Limpa tudo
     [ledRec, ledProc, ledSpeak].forEach(l => l.classList.remove('on'));
     [btnA, btnB].forEach(b => b.classList.remove('active-press'));
     if (pulseA) pulseA.classList.remove('pulsing');
@@ -67,62 +269,45 @@ function setState(state) {
             if (pulseB) pulseB.classList.add('pulsing');
             statusEl.textContent = 'Ouvindo Pessoa B...';
         },
-        'processando': () => {
-            ledProc.classList.add('on');
-            statusEl.textContent = 'Traduzindo...';
-        },
-        'falando': () => {
-            ledSpeak.classList.add('on');
-            statusEl.textContent = 'Reproduzindo tradução...';
-        },
-        'conectando': () => {
-            statusEl.textContent = 'Conectando...';
-        },
-        'erro': () => {
-            statusEl.textContent = '⚠️ Erro — recarregue a página';
-        },
-        'idle': () => {
-            statusEl.textContent = 'Aguardando...';
-        },
+        'processando': () => { ledProc.classList.add('on'); statusEl.textContent = 'Traduzindo...'; },
+        'falando':     () => { ledSpeak.classList.add('on'); statusEl.textContent = 'Reproduzindo tradução...'; },
+        'conectando':  () => { statusEl.textContent = 'Conectando...'; },
+        'erro':        () => { statusEl.textContent = '⚠️ Erro — recarregue a página'; },
+        'idle':        () => { statusEl.textContent = 'Aguardando...'; },
     };
-
     (map[state] || map['idle'])();
 }
 
 // =============================================================================
-//  DISPLAY DE IDIOMAS DETECTADOS
+//  DISPLAY DE IDIOMAS NO APP PRINCIPAL
 // =============================================================================
-function updateLangDisplay(langFrom, langTo, langPair) {
-    // Atualiza par conhecido
-    if (langPair && langPair.length >= 2) {
-        knownLangs = langPair;
-        langAEl.textContent = knownLangs[0].toUpperCase();
-        langBEl.textContent = knownLangs[1].toUpperCase();
-    } else if (langPair && langPair.length === 1) {
-        langAEl.textContent = langPair[0].toUpperCase();
-        langBEl.textContent = '?';
+function updateMainLangDisplay(langFrom, langTo, serverPair) {
+    // Se o servidor mandou um par detectado, atualiza o langPair local
+    if (serverPair && serverPair.length >= 2) {
+        // Só atualiza se não houver configuração manual
+        if (!langPair.a) langPair.a = serverPair[0];
+        if (!langPair.b) langPair.b = serverPair[1];
+        updatePairStatus();
     }
 
-    // Remove classes de destaque anteriores
+    const a = langPair.a || (serverPair && serverPair[0]) || null;
+    const b = langPair.b || (serverPair && serverPair[1]) || null;
+
+    langAEl.textContent = a ? a.toUpperCase() : '?';
+    langBEl.textContent = b ? b.toUpperCase() : '?';
+
+    // Destaque de qual está falando
     langAEl.classList.remove('active-a', 'active-b');
     langBEl.classList.remove('active-a', 'active-b');
 
-    // Destaca qual idioma está falando agora
-    if (knownLangs.length >= 2) {
-        if (langFrom === knownLangs[0]) {
-            langAEl.classList.add('active-a');
-            langBEl.classList.add('active-b');
-        } else {
-            langAEl.classList.add('active-b');
-            langBEl.classList.add('active-a');
-        }
-    } else {
-        langAEl.classList.add('active-a');
+    if (langFrom && a && b) {
+        if (langFrom === a) { langAEl.classList.add('active-a'); langBEl.classList.add('active-b'); }
+        else                { langAEl.classList.add('active-b'); langBEl.classList.add('active-a'); }
     }
 }
 
 // =============================================================================
-//  WEBSOCKET — conexão, mensagens, reconexão
+//  WEBSOCKET
 // =============================================================================
 function connectWS() {
     setState('conectando');
@@ -130,10 +315,8 @@ function connectWS() {
     ws.binaryType = 'blob';
 
     ws.onopen = () => {
-        console.log('✅ WebSocket conectado:', WS_URL);
+        console.log('✅ WebSocket:', WS_URL);
         setState('idle');
-
-        // Keepalive: envia ping a cada 25s para evitar timeout do Railway
         pingInterval = setInterval(() => {
             if (ws && ws.readyState === WebSocket.OPEN) {
                 ws.send(JSON.stringify({ type: 'ping' }));
@@ -142,94 +325,78 @@ function connectWS() {
     };
 
     ws.onmessage = async (msg) => {
-        // ── Mensagem JSON de controle ────────────────────────────────────────
         if (typeof msg.data === 'string') {
             let ctrl;
-            try { ctrl = JSON.parse(msg.data); }
-            catch (e) { return; }
+            try { ctrl = JSON.parse(msg.data); } catch(e) { return; }
 
             if (ctrl.type === 'status') {
-                if (ctrl.message === 'processing')        setState('processando');
+                if (ctrl.message === 'processing')         setState('processando');
                 if (ctrl.message === 'no_speech_detected') setState('idle');
             }
 
             if (ctrl.type === 'transcript') {
-                // Exibe texto original e traduzido com bandeira de idioma
-                txtOriginal.textContent   = `[${(ctrl.lang_from || '?').toUpperCase()}]  ${ctrl.original}`;
-                txtTranslated.textContent = `[${(ctrl.lang_to   || '?').toUpperCase()}]  ${ctrl.translated}`;
-                updateLangDisplay(ctrl.lang_from, ctrl.lang_to, ctrl.lang_pair);
-            }
+                txtOriginal.textContent   = `[${(ctrl.lang_from||'?').toUpperCase()}]  ${ctrl.original}`;
+                txtTranslated.textContent = `[${(ctrl.lang_to  ||'?').toUpperCase()}]  ${ctrl.translated}`;
+                updateMainLangDisplay(ctrl.lang_from, ctrl.lang_to, ctrl.lang_pair);
 
+                // Se estava detectando no painel, aplica o idioma detectado
+                if (detectingPerson) {
+                    const detected = ctrl.lang_from;
+                    langPair[detectingPerson] = detected;
+                    setDetectState(detectingPerson, 'detected', detected);
+                    updatePairStatus();
+                    detectingPerson = null;
+                }
+            }
             return;
         }
 
-        // ── Áudio PCM binário → reproduz no browser ──────────────────────────
+        // Áudio PCM → reproduz
         setState('falando');
         try {
             const arrayBuffer = await msg.data.arrayBuffer();
-            const pcm         = new Int16Array(arrayBuffer);
-            const float32     = new Float32Array(pcm.length);
-
-            // Converte Int16 → Float32 normalizado [-1, 1]
-            for (let i = 0; i < pcm.length; i++) {
-                float32[i] = pcm[i] / 0x7fff;
-            }
+            const pcm     = new Int16Array(arrayBuffer);
+            const float32 = new Float32Array(pcm.length);
+            for (let i = 0; i < pcm.length; i++) float32[i] = pcm[i] / 0x7fff;
 
             const ctx = new AudioContext({ sampleRate: 16000 });
             const buf = ctx.createBuffer(1, float32.length, 16000);
             buf.copyToChannel(float32, 0);
-
             const src = ctx.createBufferSource();
             src.buffer = buf;
             src.connect(ctx.destination);
             src.start();
             src.onended = () => setState('idle');
-        } catch (e) {
-            console.error('Erro ao reproduzir áudio:', e);
-            setState('idle');
-        }
+        } catch(e) { setState('idle'); }
     };
 
-    ws.onerror = (e) => {
-        console.error('WebSocket erro:', e);
-        _cleanupAfterDisconnect();
-        setState('erro');
-    };
-
-    ws.onclose = () => {
-        console.log('WebSocket fechado');
-        _cleanupAfterDisconnect();
-        setState('idle');
-    };
+    ws.onerror = () => { _cleanupWS(); setState('erro'); };
+    ws.onclose = () => { _cleanupWS(); setState('idle'); };
 }
 
-function _cleanupAfterDisconnect() {
-    stopAudio();
+function _cleanupWS() {
+    if (isRecording) stopAudio();
     isRecording = false;
     if (pingInterval) { clearInterval(pingInterval); pingInterval = null; }
 }
 
+function waitForWS() {
+    return new Promise(resolve => {
+        const check = setInterval(() => {
+            if (ws && ws.readyState === WebSocket.OPEN) { clearInterval(check); resolve(); }
+        }, 100);
+    });
+}
+
 // =============================================================================
-//  CAPTURA DE ÁUDIO — microfone → PCM → WebSocket
+//  CAPTURA DE ÁUDIO — botões principais
 // =============================================================================
 async function startAudio(person) {
     if (isRecording) return;
     isRecording  = true;
     activePerson = person;
 
-    // Garante conexão WebSocket ativa
-    if (!ws || ws.readyState !== WebSocket.OPEN) {
-        connectWS();
-        // Aguarda conexão abrir antes de gravar
-        await new Promise((resolve) => {
-            const check = setInterval(() => {
-                if (ws && ws.readyState === WebSocket.OPEN) {
-                    clearInterval(check);
-                    resolve();
-                }
-            }, 100);
-        });
-    }
+    if (!ws || ws.readyState !== WebSocket.OPEN) { connectWS(); await waitForWS(); }
 
     try {
         stream       = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -239,21 +406,15 @@ async function startAudio(person) {
 
         processor.onaudioprocess = (e) => {
             if (!isRecording) return;
-            const floatData = e.inputBuffer.getChannelData(0);
-            const pcm16     = convertToPCM16(resample(floatData, audioContext.sampleRate, 16000));
-            if (ws && ws.readyState === WebSocket.OPEN) {
-                ws.send(pcm16);
-            }
+            const pcm16 = convertToPCM16(resample(e.inputBuffer.getChannelData(0), audioContext.sampleRate, 16000));
+            if (ws && ws.readyState === WebSocket.OPEN) ws.send(pcm16);
         };
 
         input.connect(processor);
         processor.connect(audioContext.destination);
         setState(`gravando-${person}`);
-
-    } catch (e) {
-        console.error('Erro ao acessar microfone:', e);
-        isRecording  = false;
-        activePerson = null;
+    } catch(e) {
+        isRecording = false; activePerson = null;
         setState('erro');
         statusEl.textContent = '⚠️ Permita o acesso ao microfone';
     }
@@ -261,81 +422,48 @@ async function startAudio(person) {
 
 function stopAudio() {
     if (!isRecording) return;
-    isRecording  = false;
-    activePerson = null;
+    isRecording = false; activePerson = null;
 
-    // Para captura
-    if (processor) { try { processor.disconnect(); } catch(e){} processor = null; }
-    if (input)     { try { input.disconnect();     } catch(e){} input     = null; }
-    if (stream)    { stream.getTracks().forEach(t => t.stop()); stream = null; }
-    if (audioContext) {
-        try { audioContext.close(); } catch(e){}
-        audioContext = null;
-    }
+    if (processor)    { try { processor.disconnect(); }    catch(e){} processor    = null; }
+    if (input)        { try { input.disconnect(); }        catch(e){} input        = null; }
+    if (stream)       { stream.getTracks().forEach(t => t.stop()); stream = null; }
+    if (audioContext) { try { audioContext.close(); }      catch(e){} audioContext = null; }
 
-    // Sinaliza fim de fala ao servidor — dispara pipeline imediatamente
-    // sem esperar o timeout de silêncio de 1.5s
     if (ws && ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({ type: 'end_of_speech' }));
     }
-
     setState('processando');
 }
 
 // =============================================================================
 //  CONVERSÃO DE ÁUDIO
 // =============================================================================
-
-/**
- * Converte Float32Array (Web Audio API) para PCM 16-bit little-endian.
- * Formato que o backend (Whisper) espera.
- */
 function convertToPCM16(float32) {
     const buffer = new ArrayBuffer(float32.length * 2);
     const view   = new DataView(buffer);
     for (let i = 0; i < float32.length; i++) {
-        const clamped = Math.max(-1, Math.min(1, float32[i]));
-        view.setInt16(i * 2, clamped * 0x7fff, true);
+        view.setInt16(i * 2, Math.max(-1, Math.min(1, float32[i])) * 0x7fff, true);
     }
     return buffer;
 }
 
-/**
- * Reamostrage linear: converte sample rate do microfone (ex: 44100 ou 48000)
- * para 16000 Hz que o Whisper exige.
- */
 function resample(data, inRate, outRate) {
     if (inRate === outRate) return data;
-    const ratio  = inRate / outRate;
-    const newLen = Math.round(data.length / ratio);
-    const result = new Float32Array(newLen);
-    for (let i = 0; i < newLen; i++) {
-        result[i] = data[Math.floor(i * ratio)];
-    }
+    const ratio = inRate / outRate;
+    const result = new Float32Array(Math.round(data.length / ratio));
+    for (let i = 0; i < result.length; i++) result[i] = data[Math.floor(i * ratio)];
     return result;
 }
 
 // =============================================================================
-//  EVENT LISTENERS DOS BOTÕES
+//  EVENT LISTENERS DOS BOTÕES PRINCIPAIS
 // =============================================================================
 function addBtnListeners(btn, person) {
-    // Mouse (desktop)
-    btn.addEventListener('mousedown', async () => await startAudio(person));
-    btn.addEventListener('mouseup',   ()        => stopAudio());
-    // Se arrastar o mouse pra fora do botão sem soltar
-    btn.addEventListener('mouseleave', () => {
-        if (isRecording && activePerson === person) stopAudio();
-    });
-
-    // Touch (mobile / tablet)
-    btn.addEventListener('touchstart', async (e) => {
-        e.preventDefault();
-        await startAudio(person);
-    });
-    btn.addEventListener('touchend', (e) => {
-        e.preventDefault();
-        stopAudio();
-    });
+    btn.addEventListener('mousedown',  async () => await startAudio(person));
+    btn.addEventListener('mouseup',    ()        => stopAudio());
+    btn.addEventListener('mouseleave', ()        => { if (isRecording && activePerson === person) stopAudio(); });
+    btn.addEventListener('touchstart', async (e) => { e.preventDefault(); await startAudio(person); });
+    btn.addEventListener('touchend',   (e)       => { e.preventDefault(); stopAudio(); });
 }
 
 addBtnListeners(btnA, 'a');
@@ -344,15 +472,13 @@ addBtnListeners(btnB, 'b');
 // =============================================================================
 //  INICIALIZAÇÃO
 // =============================================================================
+populateSelects();
 connectWS();
+updatePairStatus();
 
-// Verifica permissão de microfone antecipadamente
 navigator.mediaDevices.getUserMedia({ audio: true })
-    .then(s => {
-        // Libera imediatamente — só queria verificar a permissão
-        s.getTracks().forEach(t => t.stop());
-    })
+    .then(s => s.getTracks().forEach(t => t.stop()))
     .catch(() => {
         setState('erro');
-        statusEl.textContent = '⚠️ Permita o acesso ao microfone nas configurações';
+        statusEl.textContent = '⚠️ Permita o acesso ao microfone';
     });
