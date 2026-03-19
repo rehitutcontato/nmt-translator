@@ -344,6 +344,20 @@ function connectWS() {
                 if (ctrl.message === 'no_speech_detected') setState('idle');
             }
 
+            // Primeira pessoa falou — aguarda a segunda para completar o par
+            if (ctrl.type === 'waiting_pair') {
+                const lang = LANGUAGES.find(l => l.code === ctrl.lang_detected);
+                const flag = lang ? lang.flag : '🎙️';
+                const nome = lang ? lang.label : (ctrl.lang_detected || '?').toUpperCase();
+                txtOriginal.textContent   = `${flag}  ${nome} detectado`;
+                txtTranslated.textContent = 'Aguardando a outra pessoa falar...';
+                setState('idle');
+                // Atualiza o display de idiomas com o primeiro idioma
+                langAEl.textContent = (ctrl.lang_detected || '?').toUpperCase();
+                langBEl.textContent = '?';
+                langAEl.classList.add('active-a');
+            }
+
             if (ctrl.type === 'transcript') {
                 txtOriginal.textContent   = `[${(ctrl.lang_from||'?').toUpperCase()}]  ${ctrl.original}`;
                 txtTranslated.textContent = `[${(ctrl.lang_to  ||'?').toUpperCase()}]  ${ctrl.translated}`;

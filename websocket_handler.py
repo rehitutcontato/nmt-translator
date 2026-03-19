@@ -207,11 +207,17 @@ async def handle_translation_session(websocket: WebSocket) -> None:
 
             audio_out, metadata = await run_pipeline(audio_data, session_id, lang_tracker)
 
-            if audio_out:
-                # Envia metadata (textos + idiomas) para o frontend exibir
+            if metadata and metadata.get("type") == "waiting_pair":
+                # Primeira pessoa falou — par ainda incompleto, não traduz
+                await manager.send_json(session_id, metadata)
+                logger.info(
+                    "[%s] ⏳ Aguardando segunda pessoa | idioma detectado: %s",
+                    session_id, metadata.get("lang_detected", "?")
+                )
+            elif audio_out:
+                # Par completo — envia metadata e áudio traduzido
                 if metadata:
                     await manager.send_json(session_id, metadata)
-                # Envia áudio traduzido
                 await manager.send_bytes(session_id, audio_out)
                 logger.info(
                     "[%s] 🔊 Áudio enviado: %d bytes | %s → %s",

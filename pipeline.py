@@ -99,15 +99,7 @@ class SessionLanguageTracker:
                 target,
             )
             return target
-        else:
-            # Ainda só 1 idioma conhecido — usa inglês como ponte
-            # (será substituído quando o segundo idioma aparecer)
-            fallback = "en" if detected_lang != "en" else "pt"
-            logger.info(
-                "[%s] 🔍 Idioma único até agora: %s → destino provisório: %s",
-                self.session_id, detected_lang, fallback,
-            )
-            return fallback
+
 
     def get_voice_for(self, lang: str) -> str:
         """Retorna a voz Edge TTS mais adequada para o idioma."""
@@ -233,12 +225,24 @@ async def run_pipeline(
             "[%s] STT (%.0fms): '%s' [%s]",
             session_id, t_stt * 1000, transcript, lang_origem
         )
-
         # ── Resolução automática do idioma destino ─────────────────────────
         lang_destino = lang_tracker.resolve_target(lang_origem)
+
+        # Par incompleto: 1ª pessoa falou, 2ª ainda não.
+        # Não traduz — registra idioma e avisa o frontend para aguardar.
+        if lang_destino is None:
+            logger.info(
+                "[%s] ⏳ Idioma '%s' registrado. Aguardando segunda pessoa falar.",
+                session_id, lang_origem
+            )
+            return None, {
+                "type": "waiting_pair",
+                "lang_detected": lang_origem,
+                "message": "Idioma detectado. Aguardando a outra pessoa falar.",
+            }
+
         lang_destino_label = lang_tracker.get_label_for(lang_destino)
         voz_destino = lang_tracker.get_voice_for(lang_destino)
-
         # ── Etapa 2: Tradução ──────────────────────────────────────────────
         t0 = time.monotonic()
         translated = await translate(transcript, lang_destino_label, session_id)
