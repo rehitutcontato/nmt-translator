@@ -164,7 +164,7 @@ function setState(state) {
 }
 
 function connectWS() {
-  ws = new WebSocket('ws://localhost:8000/ws/translate');
+ws = new WebSocket('wss://nmt.up.railway.app/ws/translate');
 
   ws.onopen = () => console.log('WS conectado');
 
