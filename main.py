@@ -144,32 +144,40 @@ _START_TIME = time.monotonic()
 #  FRONTEND WEB
 # ─────────────────────────────────────────────
 
+
+
+
 @app.get("/", include_in_schema=False)
-async def serve_frontend():
+async def serve_landing():
     """
-    Serve a interface web do protótipo virtual.
+    Rota raiz → Landing page de apresentação do produto.
+    Visitantes chegam aqui primeiro ao acessar a URL.
+    """
+    landing = FRONTEND_DIR / "landing.html"
+    if landing.exists():
+        return FileResponse(str(landing))
+    # Fallback: redireciona para o app se landing não existir
+    from fastapi.responses import RedirectResponse
+    return RedirectResponse(url="/app")
 
-    O browser acessa http://localhost:8000 e recebe o index.html
-    que captura o microfone via MediaRecorder API e conecta ao WebSocket.
 
-    ⚠️ ALERTA PARA CHATGPT: A UI web (frontend/index.html) precisa ser
-    entregue conforme o fluxo UX definido por você. O servidor já está
-    pronto para servir. Coloque o index.html em frontend/index.html.
+@app.get("/app", include_in_schema=False)
+async def serve_app():
+    """
+    Rota /app → Interface do tradutor bidirecional.
+    Acessada via botão CTA da landing page.
     """
     index_path = FRONTEND_DIR / "index.html"
     if index_path.exists():
         return FileResponse(str(index_path))
-    # Fallback se o frontend ainda não foi criado
     return JSONResponse(
         status_code=200,
         content={
             "status": "servidor_ok",
             "mensagem": "Frontend não encontrado. Crie frontend/index.html.",
             "websocket": "ws://localhost:8000/ws/translate",
-            "health": "http://localhost:8000/health",
         }
     )
-
 
 # ─────────────────────────────────────────────
 #  ENDPOINT WEBSOCKET — TRADUÇÃO
