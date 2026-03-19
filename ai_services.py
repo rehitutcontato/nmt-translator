@@ -109,10 +109,26 @@ async def transcribe_audio(pcm_data) -> tuple[str, str]:
         response = await groq_client.audio.transcriptions.create(
             file=("audio.wav", wav_file.read()),
             model="whisper-large-v3",
-            response_format="verbose_json",  # ← retorna idioma detectado
+            response_format="verbose_json",
         )
 
+        texto = response.text.strip()
 
+        # Whisper retorna nome por extenso: "Portuguese", "Spanish", etc.
+        # Normaliza para código ISO 2 letras que o VOICE_MAP usa: "pt", "es"
+        idioma_raw = (response.language or "en").lower()
+
+        WHISPER_LANG_FIX = {
+            "portuguese": "pt", "english":  "en", "german":  "de",
+            "spanish":    "es", "french":   "fr", "italian": "it",
+            "japanese":   "ja", "chinese":  "zh", "korean":  "ko",
+            "russian":    "ru", "arabic":   "ar", "hindi":   "hi",
+            "dutch":      "nl", "polish":   "pl", "turkish": "tr",
+        }
+        idioma = WHISPER_LANG_FIX.get(idioma_raw, idioma_raw.split("-")[0])
+
+        print(f"✅ Texto: '{texto}' | Idioma: '{idioma_raw}' → '{idioma}'")
+        return texto, idioma
 
     except Exception as e:
         print(f"❌ Erro na transcrição: {e}")
