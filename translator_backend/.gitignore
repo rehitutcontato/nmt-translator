@@ -1,0 +1,19 @@
+venv/
+__pycache__/
+*.py[cod]
+*.pyo
+.Python
+
+# Variáveis de ambiente — NUNCA commitar
+.env
+*.env
+
+# Alembic cache
+alembic/versions/__pycache__/
+
+# VS Code
+.vscode/
+
+# Sistema
+.DS_Store
+Thumbs.db
