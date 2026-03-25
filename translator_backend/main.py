@@ -18,6 +18,9 @@ import logging
 import os
 import sys
 import time
+
+from billing.router import router as billing_router
+app.include_router(billing_router)
 from contextlib import asynccontextmanager
 from pathlib import Path
 
