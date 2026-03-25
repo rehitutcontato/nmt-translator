@@ -167,6 +167,8 @@ async def upsert_subscription(
     )
 
 
+
+
 async def _expire_subscription(sub: Subscription, db: AsyncSession) -> None:
     sub.status = "expired"
     await db.flush()
@@ -186,6 +188,23 @@ async def cancel_subscription(user_id: str, db: AsyncSession) -> None:
         sub.cancelled_at = datetime.utcnow()
         await db.flush()
 
+async def get_active_subscription(user_id: str, db) -> Subscription | None:
+    from sqlalchemy import select
+    result = await db.execute(
+        select(Subscription)
+        .where(Subscription.user_id == user_id, Subscription.status == 'active')
+    )
+    return result.scalars().first()
+
+async def get_usage_this_month(user_id: str, db) -> float:
+    from sqlalchemy import select, func
+    first_day = datetime.utcnow().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    result = await db.execute(
+        select(func.sum(UsageLog.minutes_used))
+        .where(UsageLog.user_id == user_id)
+        .where(UsageLog.created_at >= first_day)
+    )
+    return result.scalar() or 0.0
 
 # ══════════════════════════════════════════════
 # USAGE LOGS
