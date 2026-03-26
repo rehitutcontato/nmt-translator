@@ -196,10 +196,10 @@ async function startDetection(person) {
     setDetectState(person, 'detecting');
 
     // Garante WebSocket para o backend detectar o idioma via Whisper
-    if (!ws || ws.readyState !== WebSocket.OPEN) {
-        connectWS();
-        await waitForWS();
-    }
+   if (!ws || ws.readyState !== WebSocket.OPEN) {
+    await connectWS();
+    await waitForWS();
+}
 
     try {
         detectStream    = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -319,13 +319,20 @@ function updateMainLangDisplay(langFrom, langTo, serverPair) {
 // =============================================================================
 //  WEBSOCKET
 // =============================================================================
-function connectWS() {
+async function connectWS() {
     setState('conectando');
-    ws = new WebSocket(WS_URL);
+
+    const wsUrl = await Auth.getWebSocketURL();
+    if (!wsUrl) {
+        showAuthModal('login');
+        return;
+    }
+
+    ws = new WebSocket(wsUrl);
     ws.binaryType = 'blob';
 
     ws.onopen = () => {
-        console.log('✅ WebSocket:', WS_URL);
+        console.log('✅ WebSocket:', wsUrl);
         setState('idle');
         pingInterval = setInterval(() => {
             if (ws && ws.readyState === WebSocket.OPEN) {
@@ -432,7 +439,10 @@ async function startAudio(person) {
     isRecording  = true;
     activePerson = person;
 
-    if (!ws || ws.readyState !== WebSocket.OPEN) { connectWS(); await waitForWS(); }
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+    await connectWS();
+    await waitForWS();
+}
 
     try {
         stream       = await navigator.mediaDevices.getUserMedia({ audio: true });
