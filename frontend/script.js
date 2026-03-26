@@ -508,13 +508,35 @@ addBtnListeners(btnB, 'b');
 // =============================================================================
 //  INICIALIZAÇÃO
 // =============================================================================
+✅ Forma correta de integrar o DOMContentLoaded
+
+Você deve substituir a inicialização atual, e não só adicionar no meio.
+
+🔧 Troque ESTE BLOCO:
 populateSelects();
 connectWS();
 updatePairStatus();
 
 navigator.mediaDevices.getUserMedia({ audio: true })
-    .then(s => s.getTracks().forEach(t => t.stop()))
-    .catch(() => {
+🚀 POR ESTE:
+document.addEventListener('DOMContentLoaded', async () => {
+    populateSelects();
+    updatePairStatus();
+
+    const authed = await initAuth();
+    if (authed) {
+        connectWS();
+    } else {
         setState('erro');
-        statusEl.textContent = '⚠️ Permita o acesso ao microfone';
-    });
+        statusEl.textContent = '⚠️ Falha na autenticação';
+        return;
+    }
+
+    // Teste de permissão do microfone
+    navigator.mediaDevices.getUserMedia({ audio: true })
+        .then(s => s.getTracks().forEach(t => t.stop()))
+        .catch(() => {
+            setState('erro');
+            statusEl.textContent = '⚠️ Permita o acesso ao microfone';
+        });
+});
