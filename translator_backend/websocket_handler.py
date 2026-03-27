@@ -195,9 +195,7 @@ async def handle_translation_session(websocket: WebSocket) -> None:
 
         async with pipeline_lock:
             audio_data = buffer.flush()
-           duration_ms = len(audio_data) / (
-    AUDIO_CFG.sample_rate * AUDIO_CFG.channels * AUDIO_CFG.sample_width
-) * 1000
+           duration_ms = len(audio_data) / (AUDIO_CFG.sample_rate * AUDIO_CFG.channels * AUDIO_CFG.sample_width) * 1000
             logger.info("[%s] Disparando pipeline | %d bytes (%.0fms) user=%s",
                         session_id, len(audio_data), duration_ms, user_id)
 
