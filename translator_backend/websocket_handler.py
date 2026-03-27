@@ -193,7 +193,8 @@ async def handle_translation_session(websocket: WebSocket) -> None:
         if buffer.is_empty():
             return
 
-       async with pipeline_lock:
+        # AGORA COM 8 ESPAÇOS EXATOS:
+        async with pipeline_lock:
             audio_data = buffer.flush()
             
             # Cálculo de duração com nomes novos e indentação rigorosa
