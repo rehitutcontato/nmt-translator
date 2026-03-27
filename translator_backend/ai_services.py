@@ -185,8 +185,7 @@ async def translate_text(text: str, target_lang: str = "English") -> str:
 # ==========================================
 # 3. TTS — VOZ AUTOMÁTICA POR IDIOMA
 # ==========================================
-a# 3. TTS — VOZ AUTOMÁTICA POR IDIOMA
-# ==========================================
+
 async def generate_speech(text: str, voice: str = "en-US-ChristopherNeural") -> bytes:
     """
     Gera áudio PCM 16kHz via Edge TTS.
