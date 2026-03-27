@@ -25,7 +25,7 @@ import logging
 import time
 from typing import Optional
 
-from config import AUDIO_CFG
+from config import audio_config
 
 try:
     from ai_services import (
@@ -125,11 +125,13 @@ async def transcribe(audio_pcm: bytes, session_id: str) -> tuple[Optional[str], 
     Retorno:
         Tupla (texto, idioma_iso) ou (None, None) em caso de falha/silêncio.
     """
-    duracao_ms = (
+   duracao_ms = (
         len(audio_pcm)
-        / (AUDIO_CFG.sample_rate * AUDIO_CFG.channels * AUDIO_CFG.sample_width_bytes)
+        / (audio_config.sample_rate * audio_config.channels * audio_config.sample_width)
         * 1000
     )
+
+
 
     min_bytes = int(AUDIO_CFG.sample_rate * AUDIO_CFG.channels
                     * AUDIO_CFG.sample_width_bytes * 0.3)
@@ -184,8 +186,8 @@ async def synthesize(text: str, voice: str, session_id: str) -> Optional[bytes]:
         resultado = await generate_speech(text, voice=voice)
         return resultado if resultado else None
 
-    silence_samples = AUDIO_CFG.sample_rate * AUDIO_CFG.channels
-    return b'\x00\x00' * silence_samples
+   silence_samples = audio_config.sample_rate * audio_config.channels
+return b'\x00\x00' * silence_samples
 
 
 # ─────────────────────────────────────────────
