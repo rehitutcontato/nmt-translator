@@ -132,9 +132,8 @@ async def transcribe(audio_pcm: bytes, session_id: str) -> tuple[Optional[str], 
     )
 
 
+min_bytes = int(audio_config.sample_rate * audio_config.channels * audio_config.sample_width * 0.3)
 
-    min_bytes = int(AUDIO_CFG.sample_rate * AUDIO_CFG.channels
-                    * AUDIO_CFG.sample_width_bytes * 0.3)
     if len(audio_pcm) < min_bytes:
         logger.info("[%s] STT ignorado: áudio muito curto (%.0fms).", session_id, duracao_ms)
         return None, None
