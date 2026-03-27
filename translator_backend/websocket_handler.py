@@ -57,7 +57,7 @@ class ConnectionManager:
         Aceita e registra nova conexão WebSocket.
         Retorna False se limite atingido.
         """
-        if len(self._active) >= SERVER_CFG.max_connections:
+        if len(self._active) >= server_config.max_connections:
             await websocket.close(code=1008, reason="Servidor lotado")
             logger.warning("Conexão recusada: limite de %d atingido.", SERVER_CFG.max_connections)
             return False
