@@ -112,8 +112,6 @@ class SessionLanguageTracker:
     @property
     def lang_pair(self) -> set:
         return self._lang_pair.copy()
-
-
 # ─────────────────────────────────────────────
 #  ETAPA 1 — STT COM DETECÇÃO DE IDIOMA
 # ─────────────────────────────────────────────
@@ -125,14 +123,15 @@ async def transcribe(audio_pcm: bytes, session_id: str) -> tuple[Optional[str], 
     Retorno:
         Tupla (texto, idioma_iso) ou (None, None) em caso de falha/silêncio.
     """
-   duracao_ms = (
+    # 4 espaços de recuo aqui:
+    duracao_ms = (
         len(audio_pcm)
         / (audio_config.sample_rate * audio_config.channels * audio_config.sample_width)
         * 1000
     )
 
-
-min_bytes = int(audio_config.sample_rate * audio_config.channels * audio_config.sample_width * 0.3)
+    # 4 espaços de recuo aqui também:
+    min_bytes = int(audio_config.sample_rate * audio_config.channels * audio_config.sample_width * 0.3)
 
     if len(audio_pcm) < min_bytes:
         logger.info("[%s] STT ignorado: áudio muito curto (%.0fms).", session_id, duracao_ms)
@@ -146,7 +145,6 @@ min_bytes = int(audio_config.sample_rate * audio_config.channels * audio_config.
 
     # Mock
     return "Olá, como você está?", "pt"
-
 
 # ─────────────────────────────────────────────
 #  ETAPA 2 — TRADUÇÃO COM IDIOMA DINÂMICO
