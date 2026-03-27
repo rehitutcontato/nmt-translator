@@ -15,7 +15,7 @@ load_dotenv()
 # ──────────────────────────────────────────────
 
 @dataclass
-class AudioConfig:
+class AUDIO_CFG:
     chunk_duration_ms: int = int(os.getenv("CHUNK_DURATION_MS", "250"))
     sample_rate: int = 16000
     channels: int = 1
