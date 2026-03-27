@@ -119,18 +119,14 @@ class SessionLanguageTracker:
 async def transcribe(audio_pcm: bytes, session_id: str) -> tuple[Optional[str], Optional[str]]:
     """
     Transcreve áudio e detecta idioma automaticamente.
-
-    Retorno:
-        Tupla (texto, idioma_iso) ou (None, None) em caso de falha/silêncio.
     """
-    # 4 espaços de recuo aqui:
+    # 4 espaços de recuo em cada linha abaixo
     duracao_ms = (
         len(audio_pcm)
         / (audio_config.sample_rate * audio_config.channels * audio_config.sample_width)
         * 1000
     )
 
-    # 4 espaços de recuo aqui também:
     min_bytes = int(audio_config.sample_rate * audio_config.channels * audio_config.sample_width * 0.3)
 
     if len(audio_pcm) < min_bytes:
@@ -143,9 +139,7 @@ async def transcribe(audio_pcm: bytes, session_id: str) -> tuple[Optional[str], 
             return None, None
         return texto.strip(), idioma
 
-    # Mock
     return "Olá, como você está?", "pt"
-
 # ─────────────────────────────────────────────
 #  ETAPA 2 — TRADUÇÃO COM IDIOMA DINÂMICO
 # ─────────────────────────────────────────────
