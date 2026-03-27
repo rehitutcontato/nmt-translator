@@ -23,7 +23,7 @@ from billing.router import router as billing_router
 from config import server_config, db_config, jwt_config, abacate_config
 from config import audio_config as AUDIO_CFG
 from config import translation_config as TRANSLATION_CFG
-from config import server_config as SERVER_CFG
+from config import server_config
 from database.connection import check_db_connection
 from websocket_handler import handle_translation_session, manager
 
@@ -215,8 +215,8 @@ if __name__ == "__main__":
     import uvicorn
     uvicorn.run(
         "main:app",
-        host=SERVER_CFG.host,
-        port=SERVER_CFG.port,
+        host=server_config.host,
+        port=server_config.port,
         log_level="info",
         workers=1,
     )
