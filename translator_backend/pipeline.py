@@ -163,7 +163,6 @@ async def translate(text: str, target_lang_label: str, session_id: str) -> Optio
 # ─────────────────────────────────────────────
 #  ETAPA 3 — TTS COM VOZ AUTOMÁTICA
 # ─────────────────────────────────────────────
-
 async def synthesize(text: str, voice: str, session_id: str) -> Optional[bytes]:
     """
     Gera áudio com a voz correta para o idioma destino.
@@ -177,9 +176,9 @@ async def synthesize(text: str, voice: str, session_id: str) -> Optional[bytes]:
         resultado = await generate_speech(text, voice=voice)
         return resultado if resultado else None
 
-   silence_samples = audio_config.sample_rate * audio_config.channels
-return b'\x00\x00' * silence_samples
-
+    # MOCK MODE: Agora com 4 espaços exatos
+    silence_samples = audio_config.sample_rate * audio_config.channels
+    return b'\x00\x00' * silence_samples
 
 # ─────────────────────────────────────────────
 #  ORQUESTRADOR DO PIPELINE
