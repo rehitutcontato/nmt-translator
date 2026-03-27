@@ -31,7 +31,7 @@ from fastapi import WebSocket, WebSocketDisconnect
 
 from auth.dependencies import extract_ws_token
 from billing.plans import check_access
-from config import AUDIO_CFG, SERVER_CFG
+from config import audio_config as AUDIO_CFG, server_config as SERVER_CFG
 from database.connection import AsyncSessionFactory
 from database.crud import log_usage
 from pipeline import run_pipeline, SessionLanguageTracker
