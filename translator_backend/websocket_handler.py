@@ -195,9 +195,9 @@ async def handle_translation_session(websocket: WebSocket) -> None:
 
         async with pipeline_lock:
             audio_data = buffer.flush()
-            duration_ms = len(audio_data) / (
-                AUDIO_CFG.sample_rate * AUDIO_CFG.channels * AUDIO_CFG.sample_width_bytes
-            ) * 1000
+           duration_ms = len(audio_data) / (
+    AUDIO_CFG.sample_rate * AUDIO_CFG.channels * AUDIO_CFG.sample_width
+) * 1000
             logger.info("[%s] Disparando pipeline | %d bytes (%.0fms) user=%s",
                         session_id, len(audio_data), duration_ms, user_id)
 
@@ -241,7 +241,7 @@ async def handle_translation_session(websocket: WebSocket) -> None:
     async def _silence_timeout() -> None:
         """Dispara pipeline após SILENCE_TIMEOUT_S sem novos chunks."""
         try:
-            await asyncio.sleep(SERVER_CFG.silence_timeout_s)
+            await asyncio.sleep(AUDIO_CFG.silence_timeout_s)
             logger.debug("[%s] Timeout de silencio atingido.", session_id)
             await _dispatch_pipeline()
         except asyncio.CancelledError:
