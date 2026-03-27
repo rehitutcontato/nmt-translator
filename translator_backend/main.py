@@ -1,15 +1,30 @@
 """
 main.py — NMT Neural Machine Translator
 Fase 2: autenticação, banco de dados, planos e monetização.
+
+Stack:
+  STT  : Groq Whisper Large v3
+  TRAD : LLaMA 3.1 8B instant via Groq
+  TTS  : Microsoft Edge TTS
+  DB   : PostgreSQL via SQLAlchemy async
+  AUTH : JWT (python-jose) + bcrypt
+
+Uso:
+    uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+    # workers=1 obrigatório: ConnectionManager é in-memory
 """
 
 import logging
 import os
 import sys
 import time
+
+from billing.router import router as billing_router
+app.include_router(billing_router)
 from contextlib import asynccontextmanager
 from pathlib import Path
 
+# ── FastAPI ───────────────────────────────────
 from fastapi import FastAPI, Request, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
@@ -18,6 +33,7 @@ from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 
+# ── Projeto ───────────────────────────────────
 from auth.router import router as auth_router
 from billing.router import router as billing_router
 from config import server_config, db_config, jwt_config, abacate_config
@@ -27,11 +43,16 @@ from config import server_config as SERVER_CFG
 from database.connection import check_db_connection
 from websocket_handler import handle_translation_session, manager
 
+# Carrega .env no ambiente local (Railway injeta as vars diretamente)
 try:
     from dotenv import load_dotenv
     load_dotenv()
 except ImportError:
     pass
+
+# ─────────────────────────────────────────────
+#  LOGGING
+# ─────────────────────────────────────────────
 
 logging.basicConfig(
     level=logging.INFO,
@@ -45,33 +66,41 @@ FRONTEND_DIR = Path(__file__).parent / "frontend"
 _START_TIME = time.monotonic()
 
 
+# ─────────────────────────────────────────────
+#  CICLO DE VIDA
+# ─────────────────────────────────────────────
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("=" * 60)
     logger.info("NMT — Neural Machine Translator v2.0")
     logger.info("=" * 60)
 
+    # Verifica ai_services
     try:
         import ai_services  # noqa: F401
         logger.info("ai_services.py carregado — APIs reais ATIVAS")
     except ImportError as e:
         logger.warning("ai_services.py NAO carregado (%s) — modo MOCK", e)
 
+    # Verifica GROQ_API_KEY
     if not TRANSLATION_CFG.groq_api_key:
         logger.error("GROQ_API_KEY nao configurada!")
     else:
         logger.info("GROQ_API_KEY configurada")
 
+    # Verifica banco
     db_ok = await check_db_connection()
     if db_ok:
         logger.info("PostgreSQL conectado")
     else:
         logger.warning("PostgreSQL INDISPONIVEL — verifique DATABASE_URL")
 
+    # Verifica JWT
     if jwt_config.is_configured:
         logger.info("JWT configurado")
     else:
-        logger.error("JWT_SECRET_KEY nao configurada ou muito curta")
+        logger.error("JWT_SECRET_KEY nao configurada ou muito curta (minimo 32 chars)")
 
     logger.info("UI Web: http://localhost:%d", SERVER_CFG.port)
     logger.info("=" * 60)
@@ -80,6 +109,10 @@ async def lifespan(app: FastAPI):
 
     logger.info("Servidor encerrando...")
 
+
+# ─────────────────────────────────────────────
+#  APP
+# ─────────────────────────────────────────────
 
 limiter = Limiter(key_func=get_remote_address)
 
@@ -91,9 +124,11 @@ app = FastAPI(
     redoc_url=None,
 )
 
+# Rate limiter
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
+# CORS
 origins = (
     ["*"] if os.getenv("ENVIRONMENT", "production") == "development"
     else [os.getenv("FRONTEND_URL", "https://nmt.up.railway.app")]
@@ -106,12 +141,18 @@ app.add_middleware(
     allow_headers=["Authorization", "Content-Type"],
 )
 
+# Routers
 app.include_router(auth_router)
 app.include_router(billing_router)
 
+# Static files
 if FRONTEND_DIR.exists():
     app.mount("/static", StaticFiles(directory=str(FRONTEND_DIR)), name="static")
 
+
+# ─────────────────────────────────────────────
+#  SECURITY HEADERS
+# ─────────────────────────────────────────────
 
 @app.middleware("http")
 async def add_security_headers(request: Request, call_next):
@@ -132,6 +173,10 @@ async def add_security_headers(request: Request, call_next):
     return response
 
 
+# ─────────────────────────────────────────────
+#  FRONTEND
+# ─────────────────────────────────────────────
+
 @app.get("/", include_in_schema=False)
 async def serve_landing():
     landing = FRONTEND_DIR / "landing.html"
@@ -150,16 +195,24 @@ async def serve_app():
         status_code=200,
         content={
             "status": "servidor_ok",
-            "mensagem": "Frontend nao encontrado.",
+            "mensagem": "Frontend nao encontrado. Crie frontend/index.html.",
             "websocket": "ws://localhost:8000/ws/translate",
         }
     )
 
 
+# ─────────────────────────────────────────────
+#  WEBSOCKET
+# ─────────────────────────────────────────────
+
 @app.websocket("/ws/translate")
 async def websocket_translate(websocket: WebSocket):
     await handle_translation_session(websocket)
 
+
+# ─────────────────────────────────────────────
+#  HEALTH CHECK
+# ─────────────────────────────────────────────
 
 @app.get("/health", tags=["monitoramento"])
 async def health_check():
@@ -210,6 +263,10 @@ async def list_sessions():
         "total": len(manager._active),
     })
 
+
+# ─────────────────────────────────────────────
+#  ENTRYPOINT
+# ─────────────────────────────────────────────
 
 if __name__ == "__main__":
     import uvicorn
