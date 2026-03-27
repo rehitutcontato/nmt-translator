@@ -7,8 +7,12 @@ from groq import AsyncGroq
 import edge_tts
 import miniaudio
 
-GROQ_API_KEY = os.getenv("GROQ_API_KEY")
-groq_client = AsyncGroq(api_key=GROQ_API_KEY)
+# IMPORTAÇÃO DAS CONFIGURAÇÕES DA NEURAL
+from config import audio_config, translation_config
+
+# Inicializa o cliente usando a config centralizada
+groq_client = AsyncGroq(api_key=translation_config.groq_api_key)
+
 
 # Mapa: código ISO → voz Edge TTS mais natural
 # Usado pelo TTS automático baseado no idioma detectado
@@ -70,12 +74,15 @@ def has_speech(pcm_data: bytes, threshold: float = 0.01) -> bool:
 # ==========================================
 # FUNÇÃO AUXILIAR: PCM PARA WAV
 # ==========================================
-def pcm_to_wav(pcm_data, sample_rate=16000):
+def pcm_to_wav(pcm_data, sample_rate=None):
     """Converte PCM cru para WAV em memória. Whisper exige arquivo."""
+    if sample_rate is None:
+        sample_rate = audio_config.sample_rate
+        
     wav_io = io.BytesIO()
     with wave.open(wav_io, 'wb') as wav_file:
-        wav_file.setnchannels(1)
-        wav_file.setsampwidth(2)
+        wav_file.setnchannels(audio_config.channels)
+        wav_file.setsampwidth(audio_config.sample_width)
         wav_file.setframerate(sample_rate)
         wav_file.writeframes(pcm_data)
     wav_io.seek(0)
@@ -177,6 +184,8 @@ async def translate_text(text: str, target_lang: str = "English") -> str:
 
 # ==========================================
 # 3. TTS — VOZ AUTOMÁTICA POR IDIOMA
+# ==========================================
+a# 3. TTS — VOZ AUTOMÁTICA POR IDIOMA
 # ==========================================
 async def generate_speech(text: str, voice: str = "en-US-ChristopherNeural") -> bytes:
     """
