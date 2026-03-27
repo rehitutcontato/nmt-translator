@@ -518,17 +518,7 @@ addBtnListeners(btnB, 'b');
 // =============================================================================
 //  INICIALIZAÇÃO
 // =============================================================================
-✅ Forma correta de integrar o DOMContentLoaded
 
-Você deve substituir a inicialização atual, e não só adicionar no meio.
-
-🔧 Troque ESTE BLOCO:
-populateSelects();
-connectWS();
-updatePairStatus();
-
-navigator.mediaDevices.getUserMedia({ audio: true })
-🚀 POR ESTE:
 document.addEventListener('DOMContentLoaded', async () => {
     populateSelects();
     updatePairStatus();

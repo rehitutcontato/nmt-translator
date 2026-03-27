@@ -3,1036 +3,397 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>NMT — A Barreira do Idioma Não Existe Mais</title>
+<title>NMT — Neural Machine Translator</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,200;12..96,400;12..96,700;12..96,800&family=Figtree:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Syncopate:wght@400;700&family=Syne:wght@400;500;600;700;800&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet">
 <style>
-:root {
-  --bg: #04050d;
-  --surface: rgba(255,255,255,0.04);
-  --border: rgba(255,255,255,0.08);
-  --cyan: #00e5c4;
-  --orange: #ff6640;
-  --purple: #9b6dff;
-  --white: #f0f2f8;
-  --muted: rgba(240,242,248,0.5);
-  --font-display: 'Bricolage Grotesque', sans-serif;
-  --font-body: 'Figtree', sans-serif;
-}
-
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-html { scroll-behavior: smooth; }
-
-body {
-  font-family: var(--font-body);
-  background: var(--bg);
-  color: var(--white);
-  overflow-x: hidden;
-  cursor: none;
-}
-
-/* ── Custom Cursor ── */
-#cursor {
-  position: fixed; width: 10px; height: 10px;
-  background: var(--cyan); border-radius: 50%;
-  pointer-events: none; z-index: 9999;
-  transition: transform 0.15s ease, opacity 0.3s;
-  mix-blend-mode: screen;
-  transform: translate(-50%, -50%);
-}
-#cursor-ring {
-  position: fixed; width: 36px; height: 36px;
-  border: 1px solid rgba(0,229,196,0.4); border-radius: 50%;
-  pointer-events: none; z-index: 9998;
-  transform: translate(-50%, -50%);
-  transition: transform 0.35s cubic-bezier(0.23, 1, 0.32, 1), width 0.3s, height 0.3s, border-color 0.3s;
-}
-body:has(a:hover) #cursor-ring, body:has(button:hover) #cursor-ring {
-  width: 56px; height: 56px; border-color: rgba(0,229,196,0.7);
-}
-
-/* ── Noise Overlay ── */
-body::after {
-  content: ''; position: fixed; inset: 0;
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E");
-  opacity: 0.025; pointer-events: none; z-index: 0;
-}
-
-/* ── Nav ── */
-nav {
-  position: fixed; top: 0; left: 0; right: 0; z-index: 100;
-  padding: 20px 60px;
-  display: flex; align-items: center; justify-content: space-between;
-  background: linear-gradient(to bottom, rgba(4,5,13,0.95) 0%, transparent 100%);
-  backdrop-filter: blur(2px);
-}
-.nav-logo {
-  font-family: var(--font-display); font-weight: 800; font-size: 1.4rem;
-  letter-spacing: -0.03em;
-  background: linear-gradient(135deg, var(--cyan), var(--purple));
-  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-}
-.nav-links { display: flex; gap: 36px; list-style: none; }
-.nav-links a {
-  color: var(--muted); text-decoration: none; font-size: 0.9rem;
-  transition: color 0.3s; letter-spacing: 0.02em;
-}
-.nav-links a:hover { color: var(--white); }
-.nav-cta {
-  background: var(--cyan); color: #040508; font-weight: 600;
-  padding: 10px 24px; border-radius: 50px; border: none;
-  font-family: var(--font-body); font-size: 0.9rem;
-  cursor: none; transition: transform 0.2s, box-shadow 0.3s;
-  text-decoration: none;
-}
-.nav-cta:hover { transform: scale(1.03); box-shadow: 0 0 30px rgba(0,229,196,0.4); }
-
-/* ── HERO ── */
-#hero {
-  position: relative; min-height: 100vh;
-  display: flex; align-items: center; justify-content: center;
-  overflow: hidden;
-}
-#hero-canvas {
-  position: absolute; inset: 0; z-index: 1;
-}
-.aurora {
-  position: absolute; border-radius: 50%; filter: blur(100px);
-  pointer-events: none; z-index: 0;
-}
-.aurora-1 {
-  width: 600px; height: 600px; top: -200px; left: -100px;
-  background: radial-gradient(circle, rgba(0,229,196,0.12) 0%, transparent 70%);
-  animation: float1 18s ease-in-out infinite;
-}
-.aurora-2 {
-  width: 500px; height: 500px; bottom: -150px; right: -50px;
-  background: radial-gradient(circle, rgba(155,109,255,0.12) 0%, transparent 70%);
-  animation: float2 22s ease-in-out infinite;
-}
-.aurora-3 {
-  width: 400px; height: 400px; top: 30%; left: 45%;
-  background: radial-gradient(circle, rgba(255,102,64,0.08) 0%, transparent 70%);
-  animation: float3 15s ease-in-out infinite;
-}
-@keyframes float1 { 0%,100%{transform:translate(0,0)} 33%{transform:translate(60px,-40px)} 66%{transform:translate(-30px,60px)} }
-@keyframes float2 { 0%,100%{transform:translate(0,0)} 33%{transform:translate(-50px,30px)} 66%{transform:translate(40px,-60px)} }
-@keyframes float3 { 0%,100%{transform:translate(0,0)} 50%{transform:translate(-60px,40px)} }
-
-.hero-content {
-  position: relative; z-index: 2; text-align: center;
-  max-width: 960px; padding: 0 24px;
-}
-
-.hero-badge {
-  display: inline-flex; align-items: center; gap: 8px;
-  background: rgba(0,229,196,0.08); border: 1px solid rgba(0,229,196,0.2);
-  padding: 6px 16px; border-radius: 50px; margin-bottom: 36px;
-  font-size: 0.8rem; letter-spacing: 0.08em; text-transform: uppercase;
-  color: var(--cyan); font-weight: 500;
-  animation: fadeUp 1s ease both;
-}
-.badge-dot {
-  width: 6px; height: 6px; background: var(--cyan); border-radius: 50%;
-  animation: pulse 2s ease-in-out infinite;
-}
-@keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.5;transform:scale(0.7)} }
-
-.hero-headline {
-  font-family: var(--font-display); font-weight: 800;
-  font-size: clamp(3.2rem, 8vw, 7.5rem); line-height: 0.9;
-  letter-spacing: -0.04em; margin-bottom: 16px;
-  animation: fadeUp 1s ease 0.1s both;
-}
-.hl-1 { display: block; color: var(--white); }
-.hl-2 {
-  display: block;
-  background: linear-gradient(135deg, var(--cyan) 0%, var(--purple) 50%, var(--orange) 100%);
-  background-size: 200% 200%;
-  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-  animation: gradShift 6s ease-in-out infinite, fadeUp 1s ease 0.2s both;
-}
-@keyframes gradShift { 0%,100%{background-position:0% 50%} 50%{background-position:100% 50%} }
-
-/* Morphing word */
-.hero-morph {
-  height: clamp(3rem, 7vw, 6.5rem);
-  display: flex; align-items: center; justify-content: center;
-  margin-bottom: 32px; overflow: hidden;
-  font-family: var(--font-display); font-weight: 800;
-  font-size: clamp(3rem, 7vw, 6.5rem); line-height: 0.9;
-  letter-spacing: -0.04em;
-  animation: fadeUp 1s ease 0.3s both;
-}
-.morph-word {
-  position: absolute; display: flex; gap: 4px;
-  opacity: 0; transform: translateY(30px) scale(0.96);
-  transition: opacity 0.7s cubic-bezier(0.4,0,0.2,1),
-              transform 0.7s cubic-bezier(0.4,0,0.2,1);
-}
-.morph-word.active {
-  opacity: 1; transform: translateY(0) scale(1);
-}
-.morph-word.exit {
-  opacity: 0; transform: translateY(-30px) scale(1.04);
-}
-.morph-char { display: inline-block; }
-
-.hero-sub {
-  font-size: 1.15rem; color: var(--muted); line-height: 1.7;
-  max-width: 560px; margin: 0 auto 48px;
-  font-weight: 300; letter-spacing: 0.01em;
-  animation: fadeUp 1s ease 0.4s both;
-}
-.hero-sub strong { color: var(--white); font-weight: 500; }
-
-.hero-actions {
-  display: flex; gap: 16px; justify-content: center; flex-wrap: wrap;
-  animation: fadeUp 1s ease 0.5s both;
-}
-.btn-primary {
-  background: var(--cyan); color: #040508; font-weight: 700;
-  padding: 16px 36px; border-radius: 50px; border: none;
-  font-family: var(--font-body); font-size: 1rem;
-  cursor: none; transition: transform 0.2s, box-shadow 0.3s;
-  text-decoration: none; display: inline-flex; align-items: center; gap: 10px;
-  letter-spacing: -0.01em;
-}
-.btn-primary:hover { transform: scale(1.04); box-shadow: 0 0 50px rgba(0,229,196,0.5); }
-.btn-secondary {
-  background: transparent; color: var(--white);
-  padding: 16px 36px; border-radius: 50px;
-  border: 1px solid var(--border);
-  font-family: var(--font-body); font-size: 1rem;
-  cursor: none; transition: all 0.3s;
-  text-decoration: none; display: inline-flex; align-items: center; gap: 10px;
-  backdrop-filter: blur(10px);
-}
-.btn-secondary:hover { border-color: rgba(255,255,255,0.3); background: rgba(255,255,255,0.05); }
-
-/* Language badges floating */
-.lang-orbit {
-  position: absolute; inset: 0; pointer-events: none; z-index: 1;
-  animation: fadeUp 1.5s ease 0.8s both;
-}
-.lang-badge {
-  position: absolute; background: rgba(255,255,255,0.05);
-  border: 1px solid rgba(255,255,255,0.1);
-  padding: 8px 16px; border-radius: 50px;
-  font-size: 0.8rem; font-weight: 600; letter-spacing: 0.05em;
-  backdrop-filter: blur(10px);
-  animation: floatBadge var(--d, 8s) ease-in-out infinite var(--delay, 0s);
-}
-@keyframes floatBadge { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-12px)} }
-
-/* Scroll indicator */
-.scroll-hint {
-  position: absolute; bottom: 40px; left: 50%;
-  transform: translateX(-50%); z-index: 2;
-  display: flex; flex-direction: column; align-items: center; gap: 8px;
-  color: var(--muted); font-size: 0.75rem; letter-spacing: 0.1em;
-  text-transform: uppercase; animation: fadeUp 1.5s ease 1s both;
-}
-.scroll-line {
-  width: 1px; height: 60px; background: linear-gradient(to bottom, var(--cyan), transparent);
-  animation: scrollPulse 2s ease-in-out infinite;
-}
-@keyframes scrollPulse { 0%{opacity:0;transform:scaleY(0);transform-origin:top} 50%{opacity:1;transform:scaleY(1)} 100%{opacity:0;transform:scaleY(1);transform-origin:bottom} }
-
-/* ── SECTIONS BASE ── */
-section { position: relative; z-index: 1; }
-.container { max-width: 1200px; margin: 0 auto; padding: 0 60px; }
-
-/* ── PROBLEM ── */
-#problem {
-  padding: 140px 0;
-  background: linear-gradient(to bottom, var(--bg) 0%, rgba(9,10,25,1) 100%);
-}
-.section-label {
-  font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.15em;
-  color: var(--cyan); margin-bottom: 20px; font-weight: 600;
-}
-.section-title {
-  font-family: var(--font-display); font-weight: 800;
-  font-size: clamp(2.2rem, 5vw, 4rem);
-  line-height: 1.0; letter-spacing: -0.03em;
-  margin-bottom: 24px;
-}
-.section-sub {
-  font-size: 1.1rem; color: var(--muted); max-width: 540px;
-  line-height: 1.7; font-weight: 300;
-}
-
-.problem-grid {
-  display: grid; grid-template-columns: 1fr 1fr;
-  gap: 80px; align-items: center; margin-top: 80px;
-}
-.problem-visual {
-  position: relative; height: 400px;
-}
-.wall {
-  position: absolute; top: 50%; left: 50%;
-  transform: translate(-50%, -50%);
-  width: 4px; height: 300px;
-  background: linear-gradient(to bottom, transparent, rgba(255,255,255,0.15), transparent);
-  border-radius: 4px;
-}
-.wall::before, .wall::after {
-  content: ''; position: absolute; width: 100px; height: 1px;
-  top: 50%; transform: translateY(-50%);
-  background: linear-gradient(to right, transparent, rgba(255,255,255,0.08));
-}
-.wall::before { right: 100%; }
-.wall::after { left: 100%; background: linear-gradient(to left, transparent, rgba(255,255,255,0.08)); }
-.person-bubble {
-  position: absolute; padding: 14px 20px;
-  background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.1);
-  border-radius: 16px; font-size: 0.9rem; font-weight: 500;
-  backdrop-filter: blur(10px); white-space: nowrap;
-}
-.person-bubble::before {
-  content: ''; position: absolute; width: 8px; height: 8px;
-  background: rgba(255,255,255,0.1); border-radius: 50%;
-  top: 50%; transform: translateY(-50%);
-}
-.pb-left { left: 40px; top: 30%; }
-.pb-left::before { right: -16px; }
-.pb-left2 { left: 20px; top: 58%; opacity: 0.6; }
-.pb-left2::before { right: -16px; }
-.pb-right { right: 40px; top: 25%; color: var(--muted); }
-.pb-right::before { left: -16px; }
-.pb-right2 { right: 20px; top: 55%; opacity: 0.6; color: var(--muted); }
-.pb-right2::before { left: -16px; }
-
-.stat-grid {
-  display: grid; grid-template-columns: 1fr 1fr;
-  gap: 20px; margin-top: 40px;
-}
-.stat-card {
-  background: var(--surface); border: 1px solid var(--border);
-  border-radius: 16px; padding: 24px;
-  transition: border-color 0.3s;
-}
-.stat-card:hover { border-color: rgba(0,229,196,0.3); }
-.stat-number {
-  font-family: var(--font-display); font-weight: 800;
-  font-size: 2.4rem; letter-spacing: -0.04em;
-  background: linear-gradient(135deg, var(--cyan), var(--white));
-  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-  margin-bottom: 4px;
-}
-.stat-label { color: var(--muted); font-size: 0.85rem; font-weight: 300; }
-
-/* ── HOW IT WORKS ── */
-#how {
-  padding: 140px 0;
-  background: rgba(9,10,25,1);
-}
-.steps-grid {
-  display: grid; grid-template-columns: repeat(3, 1fr);
-  gap: 2px; margin-top: 80px; position: relative;
-}
-.step-connector {
-  position: absolute; top: 52px; left: calc(33.3% - 10px);
-  width: calc(33.3% + 20px); height: 1px;
-  background: linear-gradient(to right, rgba(0,229,196,0.3), rgba(155,109,255,0.3));
-}
-.step-connector-2 {
-  left: calc(66.6% - 10px);
-  background: linear-gradient(to right, rgba(155,109,255,0.3), rgba(255,102,64,0.3));
-}
-.step {
-  background: var(--surface); border: 1px solid var(--border);
-  padding: 40px 32px; position: relative;
-  transition: transform 0.3s, border-color 0.3s;
-}
-.step:first-child { border-radius: 24px 0 0 24px; }
-.step:last-child { border-radius: 0 24px 24px 0; }
-.step:hover { transform: translateY(-6px); border-color: rgba(255,255,255,0.2); z-index: 1; }
-.step-num {
-  font-family: var(--font-display); font-size: 5rem; font-weight: 800;
-  line-height: 1; letter-spacing: -0.06em; margin-bottom: 24px;
-  opacity: 0.08;
-}
-.step-icon {
-  width: 52px; height: 52px; border-radius: 14px; margin-bottom: 24px;
-  display: flex; align-items: center; justify-content: center; font-size: 1.5rem;
-}
-.icon-cyan { background: rgba(0,229,196,0.1); border: 1px solid rgba(0,229,196,0.2); }
-.icon-purple { background: rgba(155,109,255,0.1); border: 1px solid rgba(155,109,255,0.2); }
-.icon-orange { background: rgba(255,102,64,0.1); border: 1px solid rgba(255,102,64,0.2); }
-.step-title {
-  font-family: var(--font-display); font-weight: 700; font-size: 1.4rem;
-  margin-bottom: 12px; letter-spacing: -0.02em;
-}
-.step-desc { color: var(--muted); font-size: 0.9rem; line-height: 1.6; font-weight: 300; }
-
-/* ── DEMO ── */
-#demo {
-  padding: 140px 0;
-  background: linear-gradient(to bottom, rgba(9,10,25,1), var(--bg));
-}
-.demo-box {
-  background: var(--surface); border: 1px solid var(--border);
-  border-radius: 32px; padding: 64px;
-  display: grid; grid-template-columns: 1fr 1fr;
-  gap: 64px; align-items: center;
-  position: relative; overflow: hidden;
-}
-.demo-box::before {
-  content: ''; position: absolute; inset: 0; border-radius: 32px;
-  background: radial-gradient(ellipse at top left, rgba(0,229,196,0.06) 0%, transparent 60%);
-  pointer-events: none;
-}
-.demo-screen {
-  background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.08);
-  border-radius: 20px; padding: 28px; position: relative;
-  min-height: 280px; display: flex; flex-direction: column; gap: 16px;
-}
-.demo-screen-dot {
-  position: absolute; top: 16px; left: 16px;
-  display: flex; gap: 6px;
-}
-.dot { width: 10px; height: 10px; border-radius: 50%; }
-.dot-r { background: #ff5f57; }
-.dot-y { background: #febc2e; }
-.dot-g { background: #28c840; }
-.demo-message {
-  background: rgba(255,255,255,0.06); border-radius: 12px;
-  padding: 12px 16px; font-size: 0.9rem; line-height: 1.5; margin-top: 24px;
-}
-.demo-message.translated {
-  background: rgba(0,229,196,0.08); border: 1px solid rgba(0,229,196,0.15);
-  color: var(--cyan);
-}
-.demo-typing {
-  display: flex; gap: 4px; align-items: center; padding: 8px 0;
-}
-.demo-dot {
-  width: 6px; height: 6px; background: var(--cyan); border-radius: 50%;
-  animation: typingDot 1.4s ease-in-out infinite;
-}
-.demo-dot:nth-child(2) { animation-delay: 0.2s; }
-.demo-dot:nth-child(3) { animation-delay: 0.4s; }
-@keyframes typingDot { 0%,100%{opacity:0.3;transform:translateY(0)} 50%{opacity:1;transform:translateY(-4px)} }
-
-/* ── FEATURES ── */
-#features { padding: 140px 0; background: var(--bg); }
-.features-grid {
-  display: grid; grid-template-columns: repeat(3, 1fr);
-  gap: 20px; margin-top: 80px;
-}
-.feature-card {
-  background: var(--surface); border: 1px solid var(--border);
-  border-radius: 24px; padding: 36px;
-  transition: transform 0.4s cubic-bezier(0.23,1,0.32,1), border-color 0.3s;
-  transform-style: preserve-3d; cursor: none;
-}
-.feature-card:hover { border-color: rgba(255,255,255,0.2); }
-.feat-icon {
-  width: 48px; height: 48px; border-radius: 12px; margin-bottom: 24px;
-  display: flex; align-items: center; justify-content: center; font-size: 1.3rem;
-  background: rgba(0,229,196,0.08); border: 1px solid rgba(0,229,196,0.15);
-}
-.feat-title {
-  font-family: var(--font-display); font-weight: 700; font-size: 1.15rem;
-  margin-bottom: 12px; letter-spacing: -0.02em;
-}
-.feat-desc { color: var(--muted); font-size: 0.88rem; line-height: 1.65; font-weight: 300; }
-
-/* ── USE CASES ── */
-#cases { padding: 140px 0; background: var(--bg); }
-.cases-grid {
-  display: grid; grid-template-columns: repeat(2, 1fr);
-  gap: 20px; margin-top: 80px;
-}
-.case-card {
-  background: var(--surface); border: 1px solid var(--border);
-  border-radius: 24px; padding: 36px; display: flex; gap: 24px;
-  transition: all 0.3s;
-}
-.case-card:hover { border-color: rgba(255,255,255,0.15); transform: translateY(-4px); }
-.case-emoji { font-size: 2.5rem; flex-shrink: 0; }
-.case-content {}
-.case-title {
-  font-family: var(--font-display); font-weight: 700; font-size: 1.15rem;
-  margin-bottom: 8px; letter-spacing: -0.02em;
-}
-.case-desc { color: var(--muted); font-size: 0.88rem; line-height: 1.6; font-weight: 300; }
-
-/* ── TECH ── */
-#tech { padding: 100px 0; border-top: 1px solid var(--border); }
-.tech-label {
-  text-align: center; color: var(--muted); font-size: 0.8rem;
-  letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 48px;
-}
-.tech-row {
-  display: flex; gap: 16px; flex-wrap: wrap; justify-content: center;
-}
-.tech-pill {
-  background: var(--surface); border: 1px solid var(--border);
-  padding: 10px 24px; border-radius: 50px; font-size: 0.85rem;
-  font-weight: 500; letter-spacing: 0.02em; transition: all 0.3s;
-}
-.tech-pill:hover { border-color: rgba(0,229,196,0.4); color: var(--cyan); }
-
-/* ── CTA FINAL ── */
-#cta {
-  padding: 180px 0; text-align: center;
-  background: linear-gradient(to bottom, var(--bg), rgba(4,5,13,0.95));
-  position: relative; overflow: hidden;
-}
-#cta::before {
-  content: ''; position: absolute;
-  width: 800px; height: 800px; border-radius: 50%;
-  left: 50%; top: 50%; transform: translate(-50%, -50%);
-  background: radial-gradient(circle, rgba(0,229,196,0.07) 0%, transparent 60%);
-}
-.cta-headline {
-  font-family: var(--font-display); font-weight: 800;
-  font-size: clamp(3rem, 6vw, 5.5rem); letter-spacing: -0.04em;
-  line-height: 0.95; margin-bottom: 24px;
-}
-.cta-sub { color: var(--muted); font-size: 1.1rem; margin-bottom: 48px; font-weight: 300; }
-.cta-note { color: var(--muted); font-size: 0.8rem; margin-top: 20px; }
-
-/* ── FOOTER ── */
-footer {
-  border-top: 1px solid var(--border);
-  padding: 40px 60px;
-  display: flex; align-items: center; justify-content: space-between;
-  color: var(--muted); font-size: 0.8rem;
-}
-
-/* ── REVEAL ANIMATIONS ── */
-.reveal {
-  opacity: 0; transform: translateY(40px);
-  transition: opacity 0.8s cubic-bezier(0.23,1,0.32,1),
-              transform 0.8s cubic-bezier(0.23,1,0.32,1);
-}
-.reveal.visible { opacity: 1; transform: translateY(0); }
-.reveal-delay-1 { transition-delay: 0.1s; }
-.reveal-delay-2 { transition-delay: 0.2s; }
-.reveal-delay-3 { transition-delay: 0.3s; }
-.reveal-delay-4 { transition-delay: 0.4s; }
-
-@keyframes fadeUp {
-  from { opacity: 0; transform: translateY(24px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-@media (max-width: 900px) {
-  nav { padding: 20px 24px; }
-  .container { padding: 0 24px; }
-  .problem-grid, .cases-grid { grid-template-columns: 1fr; }
-  .steps-grid { grid-template-columns: 1fr; gap: 16px; }
-  .step:first-child, .step:last-child { border-radius: 24px; }
-  .step { border-radius: 24px; }
-  .features-grid { grid-template-columns: 1fr 1fr; }
-  .demo-box { grid-template-columns: 1fr; gap: 32px; padding: 40px 24px; }
-  .step-connector, .step-connector-2 { display: none; }
-  .lang-orbit { display: none; }
-  .nav-links { display: none; }
-  footer { flex-direction: column; gap: 12px; text-align: center; }
-}
-@media (max-width: 600px) {
-  .features-grid { grid-template-columns: 1fr; }
-  .hero-headline { font-size: 3rem; }
-}
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --void:#05050A;--void2:#0A0A14;--card:#0D0D1A;
+  --m:#FF00FF;--c:#00FFFF;--a:#CCFF00;
+  --w:#F0F0FF;--muted:#6666AA;--hud:#7AB8FF;
+  --gm:0 0 28px rgba(255,0,255,.4);
+  --gc:0 0 28px rgba(0,255,255,.4);
+  --fd:'Syncopate',sans-serif;
+  --fb:'Syne',sans-serif;
+  --fm:'JetBrains Mono',monospace;
+}
+html{scroll-behavior:smooth}
+body{background:var(--void);color:var(--w);font-family:var(--fb);overflow-x:hidden;cursor:none}
+.cur{position:fixed;width:10px;height:10px;background:var(--c);border-radius:50%;pointer-events:none;z-index:9999;mix-blend-mode:screen;box-shadow:0 0 16px var(--c);transition:transform .1s}
+.crng{position:fixed;width:32px;height:32px;border:1px solid rgba(0,255,255,.5);border-radius:50%;pointer-events:none;z-index:9998;transition:all .15s}
+body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:100;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,.022) 2px,rgba(0,0,0,.022) 4px);animation:scan 10s linear infinite}
+@keyframes scan{0%{background-position:0 0}100%{background-position:0 100px}}
+nav{position:fixed;top:0;left:0;right:0;z-index:200;padding:20px 48px;display:flex;align-items:center;justify-content:space-between;background:linear-gradient(180deg,rgba(5,5,10,.95) 0%,transparent 100%);backdrop-filter:blur(12px);border-bottom:1px solid rgba(0,255,255,.05);transition:background .3s}
+.nl{font-family:var(--fd);font-size:13px;font-weight:700;letter-spacing:.3em;text-transform:uppercase}
+.nl span{color:var(--c)}
+nav ul{display:flex;gap:36px;list-style:none}
+nav ul a{font-family:var(--fm);font-size:10px;letter-spacing:.15em;color:var(--muted);text-decoration:none;text-transform:uppercase;transition:color .2s}
+nav ul a:hover{color:var(--c)}
+.ncta{font-family:var(--fm);font-size:10px;letter-spacing:.15em;text-transform:uppercase;padding:10px 24px;border:1px solid var(--c);color:var(--c);background:transparent;cursor:none;transition:all .2s;position:relative;overflow:hidden}
+.ncta::before{content:'';position:absolute;inset:0;background:var(--c);transform:translateX(-101%);transition:transform .25s;z-index:-1}
+.ncta:hover::before{transform:translateX(0)}
+.ncta:hover{color:var(--void)}
+#hero{position:relative;height:100vh;min-height:700px;display:flex;flex-direction:column;justify-content:flex-end;padding:0 48px 80px;overflow:hidden}
+#gc{position:absolute;inset:0;z-index:1}
+.htr{position:absolute;top:100px;right:48px;z-index:10;font-family:var(--fm);font-size:10px;color:var(--hud);opacity:.5;text-align:right;line-height:1.9;letter-spacing:.08em}
+.hbl{position:absolute;bottom:120px;left:48px;z-index:10;font-family:var(--fm);font-size:9px;color:var(--hud);opacity:.35;letter-spacing:.1em;writing-mode:vertical-lr;text-transform:uppercase}
+.hbadge{position:absolute;top:120px;left:48px;z-index:10;display:flex;align-items:center;gap:8px;font-family:var(--fm);font-size:10px;letter-spacing:.15em;text-transform:uppercase;color:var(--a)}
+.bdot{width:6px;height:6px;background:var(--a);border-radius:50%;animation:pd 2s ease-in-out infinite;box-shadow:0 0 10px var(--a)}
+@keyframes pd{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(.8)}}
+.hcont{position:relative;z-index:10}
+.hlabel{font-family:var(--fm);font-size:11px;letter-spacing:.3em;text-transform:uppercase;color:var(--m);margin-bottom:20px;display:flex;align-items:center;gap:12px}
+.hlabel::before{content:'';width:40px;height:1px;background:var(--m);box-shadow:var(--gm)}
+h1.ht{font-family:var(--fd);font-size:clamp(50px,8.5vw,126px);font-weight:700;line-height:.88;letter-spacing:-.02em;text-transform:uppercase}
+.ho{-webkit-text-stroke:1px rgba(255,255,255,.32);color:transparent;display:block}
+.hf{color:var(--w);display:block;text-shadow:0 0 80px rgba(0,255,255,.22)}
+.ha{color:var(--c);display:block;text-shadow:0 0 60px rgba(0,255,255,.5)}
+.hsub{font-size:15px;color:var(--muted);max-width:460px;line-height:1.65;margin:24px 0 40px}
+.hact{display:flex;gap:16px;flex-wrap:wrap}
+.bcr{position:relative;padding:16px 44px;font-family:var(--fm);font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--void);cursor:none;border:none;overflow:hidden;background:linear-gradient(135deg,#fff 0%,#c0c0ff 20%,var(--c) 40%,#fff 50%,var(--c) 60%,#a0a0ff 80%,#fff 100%);background-size:300% 300%;animation:crs 4s ease infinite;box-shadow:0 4px 28px rgba(0,255,255,.3),inset 0 1px 0 rgba(255,255,255,.65);font-weight:600;transition:box-shadow .2s,transform .2s}
+@keyframes crs{0%,100%{background-position:0% 50%}50%{background-position:100% 50%}}
+.bcr::before{content:'';position:absolute;inset:0;background:linear-gradient(180deg,rgba(255,255,255,.3) 0%,transparent 50%);pointer-events:none}
+.bcr:hover{transform:translateY(-2px);box-shadow:0 8px 38px rgba(0,255,255,.5)}
+.bgh{padding:16px 44px;font-family:var(--fm);font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--w);cursor:none;border:1px solid rgba(255,255,255,.17);background:rgba(255,255,255,.04);backdrop-filter:blur(8px);transition:all .2s}
+.bgh:hover{border-color:var(--m);color:var(--m);box-shadow:var(--gm)}
+.hstats{position:absolute;bottom:80px;right:48px;z-index:10;display:flex;flex-direction:column;gap:16px;text-align:right}
+.hst{font-family:var(--fm);font-size:9px;color:var(--hud);letter-spacing:.12em;opacity:.6}
+.hst strong{display:block;font-size:20px;font-family:var(--fd);letter-spacing:-.02em;color:var(--w);opacity:1;margin-bottom:2px}
+.stamp{position:absolute;bottom:130px;left:50%;transform:translateX(-50%);z-index:10;width:76px;height:76px;animation:ss 20s linear infinite}
+@keyframes ss{to{transform:translateX(-50%) rotate(360deg)}}
+.slb{font-family:var(--fm);font-size:10px;letter-spacing:.4em;text-transform:uppercase;color:var(--muted);margin-bottom:16px;display:flex;align-items:center;gap:12px}
+.slb::after{content:'';width:50px;height:1px;background:var(--muted);opacity:.35}
+h2.st{font-family:var(--fd);font-size:clamp(28px,4vw,56px);font-weight:700;text-transform:uppercase;line-height:.93;letter-spacing:-.01em}
+#how{padding:140px 48px;background:var(--void)}
+.hwgrid{display:grid;grid-template-columns:1fr 1fr;gap:80px;align-items:start;max-width:1200px;margin:60px auto 0}
+.hws{display:flex;flex-direction:column;gap:0;margin-top:46px}
+.tstep{position:relative;padding:26px 30px;border:1px solid rgba(0,255,255,.08);border-bottom:none;background:var(--card);overflow:hidden;opacity:0;transform:translateX(22px);transition:all .55s ease}
+.tstep:last-child{border-bottom:1px solid rgba(0,255,255,.08)}
+.tstep.vis{opacity:1;transform:translateX(0)}
+.tstep::before{content:'';position:absolute;top:0;left:0;width:3px;height:0;background:linear-gradient(180deg,var(--m),var(--c));transition:height .7s ease .3s}
+.tstep.vis::before{height:100%}
+.sh{display:flex;align-items:center;gap:14px;margin-bottom:9px}
+.sn{font-family:var(--fm);font-size:9px;color:var(--m);letter-spacing:.2em;opacity:.8}
+.sti{font-family:var(--fd);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--w)}
+.sdsc{font-size:13px;color:var(--muted);line-height:1.65}
+.smeta{margin-top:9px;font-family:var(--fm);font-size:9px;color:var(--hud);opacity:.45;letter-spacing:.08em}
+.pipe{width:1px;height:0;background:linear-gradient(180deg,var(--m),var(--c));box-shadow:0 0 5px var(--c);transition:height .5s ease;position:relative;left:78px}
+.pipe.on{height:26px}
+.mxp{position:sticky;top:100px;height:400px;border:1px solid rgba(0,255,255,.08);background:rgba(0,0,0,.55);overflow:hidden;display:flex;align-items:center;justify-content:center}
+.mxc{position:absolute;inset:0;opacity:.32}
+.mxl{position:relative;z-index:2;text-align:center}
+.bnum{font-family:var(--fd);font-size:66px;font-weight:700;line-height:1;background:linear-gradient(135deg,var(--c),var(--m));-webkit-background-clip:text;-webkit-text-fill-color:transparent;display:block}
+.mxl small{font-family:var(--fm);font-size:10px;letter-spacing:.28em;text-transform:uppercase;color:var(--muted);display:block;margin-top:8px}
+#languages{overflow:hidden}
+.mwrap{overflow:hidden;background:rgba(5,5,10,.95);border-top:1px solid rgba(0,255,255,.06);border-bottom:1px solid rgba(0,255,255,.06)}
+.mwrap:nth-child(2){border-top:none;background:var(--void2)}
+.mtrack{display:flex;width:max-content;animation:ms 32s linear infinite}
+.mtrack.rv{animation-direction:reverse;animation-duration:42s}
+@keyframes ms{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
+.mi{display:flex;align-items:center;gap:13px;padding:13px 26px;white-space:nowrap;font-family:var(--fd);font-size:clamp(12px,1.8vw,19px);font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--w);transform:rotate(-1.5deg)}
+.mi span{color:var(--a)}
+.mi::after{content:'◆';color:var(--m);font-size:8px;opacity:.5;margin-left:13px}
+#demo{padding:140px 48px;background:radial-gradient(ellipse 80% 50% at 50% 50%,rgba(0,255,255,.04) 0%,transparent 70%)}
+.dinn{max-width:940px;margin:60px auto 0}
+.dwin{border:1px solid rgba(0,255,255,.12);background:rgba(8,8,16,.97);overflow:hidden;box-shadow:0 40px 80px rgba(0,0,0,.8),0 0 55px rgba(0,255,255,.06)}
+.dtbar{display:flex;align-items:center;gap:10px;padding:12px 20px;background:rgba(255,255,255,.025);border-bottom:1px solid rgba(0,255,255,.07)}
+.dd{width:10px;height:10px;border-radius:50%}
+.dd.r{background:#FF5F57}.dd.y{background:#FFBD2E}.dd.g{background:#28CA41}
+.dtxt{font-family:var(--fm);font-size:10px;color:var(--muted);letter-spacing:.08em;margin-left:8px}
+.dfr{height:400px;display:flex;align-items:center;justify-content:center;background:radial-gradient(ellipse at center,rgba(0,255,255,.05) 0%,transparent 70%);flex-direction:column;gap:20px}
+.dpl{font-family:var(--fm);font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--muted)}
+.dlnk{font-family:var(--fm);font-size:11px;letter-spacing:.15em;text-transform:uppercase;color:var(--c);text-decoration:none;border:1px solid var(--c);padding:12px 28px;transition:all .2s;display:inline-block;cursor:none}
+.dlnk:hover{background:var(--c);color:var(--void)}
+#pricing{padding:140px 48px;background:var(--void)}
+.ph{text-align:center;margin-bottom:78px}
+.ph .slb{justify-content:center}.ph .slb::after{display:none}.ph .slb::before{content:'';width:50px;height:1px;background:var(--muted);opacity:.35}
+.pgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:24px;max-width:1040px;margin:0 auto}
+.pcard{position:relative;padding:38px 32px;border:1px solid rgba(255,255,255,.07);background:linear-gradient(145deg,rgba(13,13,26,.98),rgba(18,10,28,.95));overflow:hidden;transition:transform .3s ease,box-shadow .3s ease;cursor:default}
+.pcard::before{content:'';position:absolute;inset:0;background:linear-gradient(135deg,transparent 0%,rgba(0,255,255,.04) 25%,transparent 50%,rgba(255,0,255,.04) 75%,transparent 100%);background-size:200% 200%;opacity:0;transition:opacity .3s;pointer-events:none}
+.pcard:hover::before{opacity:1;animation:foil 1.5s ease infinite}
+@keyframes foil{0%,100%{background-position:0% 0%}50%{background-position:100% 100%}}
+.pcard::after{content:'';position:absolute;top:-50%;left:-50%;width:200%;height:200%;background:linear-gradient(105deg,transparent 40%,rgba(255,255,255,.05) 50%,transparent 60%);transform:translateX(-100%);pointer-events:none}
+.pcard:hover::after{animation:gl .6s ease forwards}
+@keyframes gl{0%{transform:translateX(-100%)}100%{transform:translateX(100%)}}
+.pcard.ft{border-color:rgba(0,255,255,.2);background:linear-gradient(145deg,rgba(0,255,255,.05),rgba(13,13,26,.98),rgba(255,0,255,.04));box-shadow:0 0 38px rgba(0,255,255,.09),inset 0 1px 0 rgba(0,255,255,.17);transform:scale(1.02) translateY(-8px)}
+.pcard.ft:hover{transform:scale(1.04) translateY(-12px);box-shadow:0 0 55px rgba(0,255,255,.17)}
+.pcard:hover:not(.ft){transform:translateY(-6px);box-shadow:0 20px 55px rgba(0,0,0,.6)}
+.sburst{position:absolute;top:-13px;right:20px;z-index:10;width:58px;height:58px}
+.sbi{width:58px;height:58px;background:var(--m);clip-path:polygon(50% 0%,56% 36%,85% 15%,65% 44%,100% 50%,65% 56%,85% 85%,56% 64%,50% 100%,44% 64%,15% 85%,35% 56%,0% 50%,35% 44%,15% 15%,44% 36%);animation:sbsp 9s linear infinite;display:flex;align-items:center;justify-content:center}
+.sbt{font-family:var(--fm);font-size:6px;font-weight:600;color:var(--void);text-align:center;letter-spacing:.04em;text-transform:uppercase;animation:sbco 9s linear infinite;line-height:1.3;position:relative;z-index:1}
+@keyframes sbsp{to{transform:rotate(360deg)}}
+@keyframes sbco{to{transform:rotate(-360deg)}}
+.pcard.ft .pbadge::before{content:'';display:block;position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,var(--m),var(--c),var(--m));background-size:200%;animation:cb 3s linear infinite}
+@keyframes cb{0%{background-position:0%}100%{background-position:200%}}
+.pbadge{font-family:var(--fm);font-size:10px;letter-spacing:.28em;text-transform:uppercase;color:var(--muted);margin-bottom:20px;position:relative}
+.ft .pbadge{color:var(--c)}
+.ppr{font-family:var(--fd);font-size:48px;font-weight:700;line-height:1;margin-bottom:6px;letter-spacing:-.03em}
+.ppr span{font-family:var(--fm);font-size:12px;font-weight:400;color:var(--muted);letter-spacing:.1em}
+.ft .ppr{background:linear-gradient(135deg,var(--c),var(--m));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.pdiv{height:1px;background:linear-gradient(90deg,rgba(255,255,255,.07),transparent);margin:20px 0}
+.pfl{list-style:none;display:flex;flex-direction:column;gap:10px;margin-bottom:32px}
+.pfl li{font-size:13px;color:var(--muted);display:flex;align-items:center;gap:10px}
+.pfl li::before{content:'○';font-size:9px;opacity:.3;flex-shrink:0}
+.pfl li.ok{color:rgba(240,240,255,.85)}
+.pfl li.ok::before{content:'◆';color:var(--a);opacity:1;font-size:7px}
+.ft .pfl li.ok::before{color:var(--c)}
+.bp{width:100%;padding:13px;font-family:var(--fm);font-size:10px;letter-spacing:.18em;text-transform:uppercase;cursor:none;border:1px solid rgba(255,255,255,.1);background:transparent;color:var(--w);transition:all .2s}
+.bp:hover{background:rgba(255,255,255,.05);border-color:rgba(255,255,255,.22)}
+.bpp{width:100%;padding:13px;font-family:var(--fm);font-size:10px;letter-spacing:.18em;text-transform:uppercase;cursor:none;border:none;background:linear-gradient(135deg,var(--c),var(--m));color:var(--void);font-weight:700;transition:all .2s;position:relative;overflow:hidden}
+.bpp::before{content:'';position:absolute;inset:0;background:linear-gradient(180deg,rgba(255,255,255,.2) 0%,transparent 50%);pointer-events:none}
+.bpp:hover{filter:brightness(1.12);box-shadow:0 0 26px rgba(0,255,255,.3)}
+#proof{padding:120px 48px;background:linear-gradient(180deg,var(--void) 0%,var(--void2) 100%);border-top:1px solid rgba(0,255,255,.05);border-bottom:1px solid rgba(0,255,255,.05)}
+.prg{display:grid;grid-template-columns:repeat(4,1fr);max-width:1060px;margin:0 auto}
+.prst{padding:46px 38px;border-right:1px solid rgba(0,255,255,.05);text-align:center}
+.prst:last-child{border-right:none}
+.prsn{font-family:var(--fd);font-size:48px;font-weight:700;letter-spacing:-.03em;line-height:1;margin-bottom:8px;background:linear-gradient(135deg,var(--w),var(--c));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.prsl{font-family:var(--fm);font-size:9px;letter-spacing:.25em;text-transform:uppercase;color:var(--muted)}
+#faq{padding:140px 48px;background:var(--void)}
+.fqinn{max-width:740px;margin:60px auto 0}
+.fi{border-bottom:1px solid rgba(0,255,255,.07);overflow:hidden}
+.fq{width:100%;padding:25px 0;display:flex;justify-content:space-between;align-items:center;cursor:none;background:transparent;border:none;color:var(--w);font-family:var(--fb);font-size:15px;font-weight:500;text-align:left;transition:color .2s}
+.fq:hover{color:var(--c)}
+.fic{width:22px;height:22px;border:1px solid rgba(0,255,255,.28);display:flex;align-items:center;justify-content:center;font-family:var(--fm);font-size:13px;color:var(--c);flex-shrink:0;transition:all .3s}
+.fi.open .fic{background:var(--c);color:var(--void);transform:rotate(45deg)}
+.fa{max-height:0;overflow:hidden;transition:max-height .4s ease,padding .4s ease;font-size:13px;color:var(--muted);line-height:1.75}
+.fi.open .fa{max-height:200px;padding-bottom:24px}
+#cta{padding:160px 48px;text-align:center;position:relative;overflow:hidden;background:linear-gradient(180deg,var(--void) 0%,rgba(0,40,60,.3) 50%,var(--void) 100%)}
+#cta::before{content:'';position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:540px;height:540px;background:radial-gradient(ellipse,rgba(0,255,255,.06) 0%,transparent 70%);pointer-events:none}
+.ctit{font-family:var(--fd);font-size:clamp(36px,6vw,82px);font-weight:700;text-transform:uppercase;line-height:.9;letter-spacing:-.02em;margin-bottom:28px}
+.ctit span{color:var(--c);display:block}
+.csub{font-size:15px;color:var(--muted);max-width:400px;margin:0 auto 46px;line-height:1.65}
+footer{padding:46px 48px;border-top:1px solid rgba(0,255,255,.05);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:18px}
+.fl{font-family:var(--fd);font-size:11px;font-weight:700;letter-spacing:.28em;text-transform:uppercase}
+.fl span{color:var(--c)}
+footer ul{display:flex;gap:26px;list-style:none;flex-wrap:wrap}
+footer ul a{font-family:var(--fm);font-size:9px;letter-spacing:.15em;text-transform:uppercase;color:var(--muted);text-decoration:none;transition:color .2s}
+footer ul a:hover{color:var(--c)}
+.fcp{font-family:var(--fm);font-size:9px;color:var(--muted);letter-spacing:.1em;opacity:.4}
+.rev{opacity:0;transform:translateY(26px);transition:opacity .6s ease,transform .6s ease}
+.rev.vis{opacity:1;transform:translateY(0)}
+@media(max-width:900px){nav{padding:16px 24px}nav ul{display:none}#hero{padding:0 24px 60px}.hstats,.stamp{display:none}.hwgrid{grid-template-columns:1fr;gap:40px}.mxp{position:static}.pgrid{grid-template-columns:1fr;max-width:380px}.pcard.ft{transform:none}.prg{grid-template-columns:repeat(2,1fr)}.prst{border-right:none;border-bottom:1px solid rgba(0,255,255,.05)}footer{padding:26px 24px}#how,#demo,#pricing,#faq,#cta{padding-left:24px;padding-right:24px}}
 </style>
 </head>
 <body>
-
-<div id="cursor"></div>
-<div id="cursor-ring"></div>
-
-<!-- NAV -->
-<nav>
-  <span class="nav-logo">NMT</span>
-  <ul class="nav-links">
-    <li><a href="#how">Como funciona</a></li>
-    <li><a href="#features">Recursos</a></li>
-    <li><a href="#cases">Casos de uso</a></li>
-  </ul>
-  <a href="/app" class="nav-cta">Experimentar →</a>
+<div class="cur" id="cur"></div>
+<div class="crng" id="crng"></div>
+<nav id="nav">
+  <div class="nl">N<span>M</span>T</div>
+  <ul><li><a href="#how">Sistema</a></li><li><a href="#languages">Idiomas</a></li><li><a href="#pricing">Planos</a></li><li><a href="#faq">FAQ</a></li></ul>
+  <button class="ncta" onclick="window.location='/app'">Começar grátis</button>
 </nav>
-
-<!-- HERO -->
 <section id="hero">
-  <canvas id="hero-canvas"></canvas>
-  <div class="aurora aurora-1"></div>
-  <div class="aurora aurora-2"></div>
-  <div class="aurora aurora-3"></div>
-
-  <!-- Floating language badges -->
-  <div class="lang-orbit">
-    <div class="lang-badge" style="--d:9s;--delay:0s;top:18%;left:8%">🇧🇷 PT</div>
-    <div class="lang-badge" style="--d:11s;--delay:1s;top:25%;right:9%">🇺🇸 EN</div>
-    <div class="lang-badge" style="--d:8s;--delay:2s;top:65%;left:5%">🇩🇪 DE</div>
-    <div class="lang-badge" style="--d:12s;--delay:0.5s;top:72%;right:7%">🇫🇷 FR</div>
-    <div class="lang-badge" style="--d:10s;--delay:3s;top:45%;left:3%">🇪🇸 ES</div>
-    <div class="lang-badge" style="--d:9.5s;--delay:1.5s;top:40%;right:4%">🇯🇵 JA</div>
-  </div>
-
-  <div class="hero-content">
-    <div class="hero-badge"><span class="badge-dot"></span>Tradução bidirecional em tempo real</div>
-
-    <h1 class="hero-headline">
-      <span class="hl-1">A BARREIRA DO</span>
-      <span class="hl-2">IDIOMA</span>
-    </h1>
-
-    <!-- Morphing words -->
-    <div class="hero-morph" id="morph-container">
-      <div class="morph-word active" data-word="não existe mais."></div>
-    </div>
-
-    <p class="hero-sub">
-      Fale. Seja entendido. Em <strong>qualquer idioma</strong>, com <strong>voz nativa</strong>,
-      em menos de <strong>2 segundos</strong>. Sem instalar nada — só abrir o navegador.
-    </p>
-
-    <div class="hero-actions">
-      <a href="/app" class="btn-primary">
-        Traduzir agora — é grátis →
-      </a>
-      <a href="#how" class="btn-secondary">
-        Como funciona
-      </a>
+  <canvas id="gc"></canvas>
+  <div class="htr">SYS.STATUS:&nbsp;ONLINE<br>LAT:&nbsp;23.55°&nbsp;S<br>LON:&nbsp;46.63°&nbsp;W<br>LATENCY:&nbsp;&lt;1.8s<br>UPTIME:&nbsp;99.9%</div>
+  <div class="hbadge"><div class="bdot"></div>Sistema ativo · 15 idiomas</div>
+  <div class="hbl">NMT · v2.0 · 2026 · NEURAL</div>
+  <div class="hcont">
+    <div class="hlabel">Neural Machine Translator</div>
+    <h1 class="ht"><span class="ho">Sem</span><span class="hf">Barreira</span><span class="ha">de Idioma</span></h1>
+    <p class="hsub">Fale qualquer idioma ao instante. Detecção automática, tradução neural em tempo real, 15 vozes nativas. Funciona no browser — sem instalar nada.</p>
+    <div class="hact">
+      <button class="bcr" onclick="window.location='/app'">Traduzir agora</button>
+      <button class="bgh" onclick="document.getElementById('how').scrollIntoView({behavior:'smooth'})">Como funciona</button>
     </div>
   </div>
-
-  <div class="scroll-hint">
-    <div class="scroll-line"></div>
-    <span>Rolar</span>
+  <div class="hstats">
+    <div class="hst"><strong><span class="cnt" data-t="15">0</span>+</strong>idiomas</div>
+    <div class="hst"><strong>&lt;1.8s</strong>latência</div>
+    <div class="hst"><strong>99.9%</strong>uptime</div>
+  </div>
+  <div class="stamp">
+    <svg viewBox="0 0 100 100" width="76" height="76">
+      <defs><path id="sc" d="M 50,50 m -30,0 a 30,30 0 1,1 60,0 a 30,30 0 1,1 -60,0"/></defs>
+      <text><textPath href="#sc" style="font-family:JetBrains Mono;font-size:9px;fill:#CCFF00;letter-spacing:3px">NMT · NEURAL TRANSLATOR · 2026 ·</textPath></text>
+      <circle cx="50" cy="50" r="18" fill="none" stroke="#CCFF00" stroke-width=".8" opacity=".6"/>
+      <text x="50" y="54" text-anchor="middle" font-family="Syncopate" font-size="8" fill="#CCFF00" font-weight="700">AI</text>
+    </svg>
   </div>
 </section>
-
-<!-- PROBLEM -->
-<section id="problem">
-  <div class="container">
-    <div class="problem-grid">
-      <div>
-        <div class="section-label reveal">O problema</div>
-        <h2 class="section-title reveal reveal-delay-1">
-          7.000 idiomas.<br>Um planeta.<br>Zero comunicação.
-        </h2>
-        <p class="section-sub reveal reveal-delay-2">
-          Todos os dias, milhões de conversas importantes não acontecem por causa do idioma.
-          Consultas médicas, negócios internacionais, conexões humanas — bloqueados por uma barreira invisível.
-        </p>
-        <div class="stat-grid" style="margin-top: 40px;">
-          <div class="stat-card reveal reveal-delay-2">
-            <div class="stat-number">7.000+</div>
-            <div class="stat-label">Idiomas no mundo</div>
-          </div>
-          <div class="stat-card reveal reveal-delay-3">
-            <div class="stat-number">3,6bi</div>
-            <div class="stat-label">Pessoas sem inglês</div>
-          </div>
-          <div class="stat-card reveal reveal-delay-3">
-            <div class="stat-number">&lt;2s</div>
-            <div class="stat-label">Nossa latência</div>
-          </div>
-          <div class="stat-card reveal reveal-delay-4">
-            <div class="stat-number">15+</div>
-            <div class="stat-label">Idiomas suportados</div>
-          </div>
-        </div>
-      </div>
-      <div class="problem-visual reveal reveal-delay-2">
-        <div class="wall"></div>
-        <div class="person-bubble pb-left">Olá, preciso de ajuda!</div>
-        <div class="person-bubble pb-left2">Como faço para...?</div>
-        <div class="person-bubble pb-right">Hallo, können Sie...?</div>
-        <div class="person-bubble pb-right2">Ich verstehe nicht</div>
-      </div>
-    </div>
-  </div>
-</section>
-
-<!-- HOW IT WORKS -->
 <section id="how">
-  <div class="container">
-    <div class="section-label reveal">Como funciona</div>
-    <h2 class="section-title reveal reveal-delay-1">Três passos.<br>Instantâneo.</h2>
-    <div class="steps-grid">
-      <div class="step-connector"></div>
-      <div class="step-connector step-connector-2"></div>
-      <div class="step reveal">
-        <div class="step-num">01</div>
-        <div class="step-icon icon-cyan">🎙️</div>
-        <div class="step-title">Fale naturalmente</div>
-        <div class="step-desc">Pressione o botão e fale em qualquer idioma. Sem configurar nada — o sistema detecta automaticamente em qual língua você está falando.</div>
+  <div class="hwgrid">
+    <div>
+      <div class="slb">Sistema</div>
+      <h2 class="st rev">3 etapas.<br><span style="color:var(--c)">1.8 segundos.</span></h2>
+      <p style="margin-top:20px;font-size:13px;color:var(--muted);line-height:1.7;max-width:380px" class="rev">Arquitetura assíncrona FastAPI + Groq. Do microfone ao áudio traduzido sem perceber o delay.</p>
+      <div class="hws">
+        <div class="tstep" id="s1"><div class="sh"><span class="sn">01/</span><span class="sti">Captura &amp; Detecção</span></div><p class="sdsc">Whisper Large v3 transcreve e detecta o idioma automaticamente. Zero configuração.</p><div class="smeta">MODEL: whisper-large-v3 · GROQ API</div></div>
+        <div class="pipe" id="p1"></div>
+        <div class="tstep" id="s2"><div class="sh"><span class="sn">02/</span><span class="sti">Tradução Neural</span></div><p class="sdsc">LLaMA 3.1 8B traduz com contexto cultural. Modo intérprete adiciona nuances relevantes.</p><div class="smeta">MODEL: llama-3.1-8b-instant · GROQ API</div></div>
+        <div class="pipe" id="p2"></div>
+        <div class="tstep" id="s3"><div class="sh"><span class="sn">03/</span><span class="sti">Síntese de Voz</span></div><p class="sdsc">Edge TTS gera áudio com voz neural nativa do idioma destino. PCM 16kHz.</p><div class="smeta">ENGINE: edge-tts · 15 VOZES NEURAIS</div></div>
       </div>
-      <div class="step reveal reveal-delay-2">
-        <div class="step-num">02</div>
-        <div class="step-icon icon-purple">⚡</div>
-        <div class="step-title">IA processa em tempo real</div>
-        <div class="step-desc">Whisper Large v3 transcreve, LLaMA 3.1 traduz com contexto e precisão. Tudo em paralelo, em menos de 2 segundos do momento que você parar de falar.</div>
-      </div>
-      <div class="step reveal reveal-delay-3">
-        <div class="step-num">03</div>
-        <div class="step-icon icon-orange">🔊</div>
-        <div class="step-title">Voz nativa do idioma</div>
-        <div class="step-desc">A tradução é reproduzida com sotaque e entonação nativos do idioma destino. Alemão soa alemão. Japonês soa japonês. Natural e fluido.</div>
+    </div>
+    <div>
+      <div class="mxp">
+        <canvas id="mxc" class="mxc"></canvas>
+        <div class="mxl"><span class="bnum" id="latd">1.7s</span><small>latência média · end-to-end</small></div>
       </div>
     </div>
   </div>
 </section>
-
-<!-- DEMO -->
+<section id="languages">
+  <div class="mwrap"><div class="mtrack" id="m1"></div></div>
+  <div class="mwrap"><div class="mtrack rv" id="m2"></div></div>
+</section>
 <section id="demo">
-  <div class="container">
-    <div class="demo-box reveal">
-      <div>
-        <div class="section-label">Ao vivo</div>
-        <h2 class="section-title">Experimente<br>agora mesmo.</h2>
-        <p class="section-sub" style="margin-bottom: 36px;">
-          Sem cadastro. Sem instalar. Só abrir e falar.
-          O sistema detecta automaticamente quem fala qual idioma
-          e traduz para o outro lado em tempo real.
-        </p>
-        <a href="/app" class="btn-primary">
-          Abrir o tradutor →
-        </a>
-        <p style="margin-top: 16px; color: var(--muted); font-size: 0.82rem;">
-          Funciona em qualquer navegador moderno · Grátis
-        </p>
-      </div>
-      <div class="demo-screen">
-        <div class="demo-screen-dot">
-          <div class="dot dot-r"></div>
-          <div class="dot dot-y"></div>
-          <div class="dot dot-g"></div>
-        </div>
-        <div class="demo-message" style="margin-top: 32px;">
-          🇧🇷 <strong style="font-size:0.75rem;color:var(--muted)">PT detectado</strong><br>
-          "Olá, meu nome é Pablo. Posso me ajudar?"
-        </div>
-        <div class="demo-typing">
-          <div class="demo-dot"></div>
-          <div class="demo-dot"></div>
-          <div class="demo-dot"></div>
-        </div>
-        <div class="demo-message translated">
-          🇩🇪 <strong style="font-size:0.75rem">DE traduzido</strong><br>
-          "Hallo, mein Name ist Pablo. Kann ich Ihnen helfen?"
-        </div>
+  <div style="text-align:center;margin-bottom:8px">
+    <div class="slb" style="justify-content:center"><span>Produto ao vivo</span></div>
+    <h2 class="st rev" style="text-align:center">Teste agora<br><span style="color:var(--m);font-style:italic">em tempo real</span></h2>
+  </div>
+  <div class="dinn">
+    <div class="dwin rev">
+      <div class="dtbar"><div class="dd r"></div><div class="dd y"></div><div class="dd g"></div><span class="dtxt">nmt.up.railway.app/app — Neural Machine Translator v2.0</span></div>
+      <div class="dfr">
+        <div class="dpl">// Interface de tradução bidirecional em tempo real</div>
+        <a href="/app" target="_blank" class="dlnk">Abrir o tradutor →</a>
+        <div style="font-family:var(--fm);font-size:9px;color:var(--muted);opacity:.45;letter-spacing:.15em;text-transform:uppercase">funciona no browser · sem instalação · WebSocket persistente</div>
       </div>
     </div>
   </div>
 </section>
-
-<!-- FEATURES -->
-<section id="features">
-  <div class="container">
-    <div class="section-label reveal">Recursos</div>
-    <h2 class="section-title reveal reveal-delay-1">Construído para<br>o mundo real.</h2>
-    <div class="features-grid">
-      <div class="feature-card reveal">
-        <div class="feat-icon">🌐</div>
-        <div class="feat-title">Detecção automática</div>
-        <div class="feat-desc">Fale em qualquer idioma sem configurar nada. O sistema detecta automaticamente e estabelece o par de idiomas da conversa.</div>
-      </div>
-      <div class="feature-card reveal reveal-delay-1">
-        <div class="feat-icon">🎭</div>
-        <div class="feat-title">Voz com sotaque nativo</div>
-        <div class="feat-desc">Cada idioma é reproduzido com uma voz neural nativa. Alemão, japonês, árabe — cada um soa exatamente como deveria.</div>
-      </div>
-      <div class="feature-card reveal reveal-delay-2">
-        <div class="feat-icon">⚡</div>
-        <div class="feat-title">Menos de 2 segundos</div>
-        <div class="feat-desc">Pipeline otimizado: Groq acelera Whisper e LLaMA a velocidades de inferência que nenhuma plataforma tradicional alcança.</div>
-      </div>
-      <div class="feature-card reveal reveal-delay-1">
-        <div class="feat-icon">📱</div>
-        <div class="feat-title">Qualquer dispositivo</div>
-        <div class="feat-desc">Funciona em celular, tablet ou computador. Sem instalar app, sem criar conta. Só abrir o link e falar.</div>
-      </div>
-      <div class="feature-card reveal reveal-delay-2">
-        <div class="feat-icon">🔄</div>
-        <div class="feat-title">Bidirecional automático</div>
-        <div class="feat-desc">Dois botões — um para cada pessoa. O sistema sabe quem é quem e traduz na direção certa em cada fala.</div>
-      </div>
-      <div class="feature-card reveal reveal-delay-3">
-        <div class="feat-icon">🔒</div>
-        <div class="feat-title">Privado por design</div>
-        <div class="feat-desc">Sem armazenamento de conversas. Cada sessão é efêmera. Sua comunicação é sua.</div>
-      </div>
+<section id="pricing">
+  <div class="ph">
+    <div class="slb">Planos</div>
+    <h2 class="st">Escolha seu<br><span style="color:var(--c)">nível</span></h2>
+  </div>
+  <div class="pgrid">
+    <div class="pcard rev">
+      <div class="pbadge">Free</div>
+      <div class="ppr">R$0<span>/mês</span></div>
+      <div class="pdiv"></div>
+      <ul class="pfl"><li class="ok">30 minutos/mês</li><li class="ok">2 idiomas simultâneos</li><li class="ok">Browser web</li><li>Modo intérprete</li><li>Voz neural premium</li><li>Histórico 90 dias</li></ul>
+      <button class="bp" onclick="window.location='/app'">Começar grátis</button>
+    </div>
+    <div class="pcard ft rev">
+      <div class="sburst"><div class="sbi"><span class="sbt">MAIS<br>POPULAR</span></div></div>
+      <div class="pbadge">Pro</div>
+      <div class="ppr">R$29<span>/mês</span></div>
+      <div class="pdiv"></div>
+      <ul class="pfl"><li class="ok">300 minutos/mês</li><li class="ok">15 idiomas simultâneos</li><li class="ok">Modo intérprete cultural</li><li class="ok">Voz neural premium</li><li class="ok">Histórico 90 dias</li><li class="ok">Suporte email 24h</li></ul>
+      <button class="bpp" onclick="checkout('pro')">Assinar Pro</button>
+    </div>
+    <div class="pcard rev">
+      <div class="pbadge">Enterprise</div>
+      <div class="ppr">R$149<span>/mês</span></div>
+      <div class="pdiv"></div>
+      <ul class="pfl"><li class="ok">Minutos ilimitados</li><li class="ok">15+ idiomas</li><li class="ok">Modo intérprete cultural</li><li class="ok">Acesso à API REST</li><li class="ok">Histórico 1 ano</li><li class="ok">WhatsApp dedicado</li></ul>
+      <button class="bp" onclick="checkout('enterprise')">Assinar Enterprise</button>
     </div>
   </div>
+  <div style="text-align:center;margin-top:34px"><p style="font-family:var(--fm);font-size:10px;letter-spacing:.15em;color:var(--muted);text-transform:uppercase">Pagamento via Pix · sem fidelidade · cancele quando quiser</p></div>
 </section>
-
-<!-- USE CASES -->
-<section id="cases">
-  <div class="container">
-    <div class="section-label reveal">Casos de uso</div>
-    <h2 class="section-title reveal reveal-delay-1">Onde o NMT<br>faz diferença.</h2>
-    <div class="cases-grid">
-      <div class="case-card reveal">
-        <div class="case-emoji">🏥</div>
-        <div class="case-content">
-          <div class="case-title">Saúde e atendimento</div>
-          <div class="case-desc">Médicos e pacientes que falam idiomas diferentes conseguem se comunicar com precisão. Histórico clínico, sintomas, tratamentos — sem barreiras.</div>
-        </div>
-      </div>
-      <div class="case-card reveal reveal-delay-1">
-        <div class="case-emoji">✈️</div>
-        <div class="case-content">
-          <div class="case-title">Turismo e viagens</div>
-          <div class="case-desc">Negocie, peça ajuda, faça amizades. Em qualquer país, com qualquer pessoa. O mundo fica muito menor quando o idioma não é problema.</div>
-        </div>
-      </div>
-      <div class="case-card reveal reveal-delay-1">
-        <div class="case-emoji">🤝</div>
-        <div class="case-content">
-          <div class="case-title">Negócios internacionais</div>
-          <div class="case-desc">Reuniões, negociações e apresentações com clientes ou parceiros estrangeiros, sem intérprete e sem ruído de comunicação.</div>
-        </div>
-      </div>
-      <div class="case-card reveal reveal-delay-2">
-        <div class="case-emoji">🎓</div>
-        <div class="case-content">
-          <div class="case-title">Educação e inclusão</div>
-          <div class="case-desc">Imigrantes, refugiados, estudantes internacionais. Acesso à informação e serviços públicos sem depender de terceiros para traduzir.</div>
-        </div>
-      </div>
-    </div>
+<section id="proof">
+  <div class="prg">
+    <div class="prst rev"><div class="prsn"><span class="cnt" data-t="15">0</span>+</div><div class="prsl">idiomas suportados</div></div>
+    <div class="prst rev"><div class="prsn">&lt;<span class="cnt" data-t="2">0</span>s</div><div class="prsl">latência end-to-end</div></div>
+    <div class="prst rev"><div class="prsn"><span class="cnt" data-t="99">0</span>%</div><div class="prsl">uptime garantido</div></div>
+    <div class="prst rev"><div class="prsn">R$<span class="cnt" data-t="0">0</span></div><div class="prsl">para começar hoje</div></div>
   </div>
 </section>
-
-<!-- TECH STACK -->
-<section id="tech">
-  <div class="container">
-    <div class="tech-label reveal">Tecnologia que torna possível</div>
-    <div class="tech-row reveal">
-      <div class="tech-pill">Groq Whisper Large v3</div>
-      <div class="tech-pill">LLaMA 3.1 8B</div>
-      <div class="tech-pill">Microsoft Edge TTS</div>
-      <div class="tech-pill">FastAPI + WebSocket</div>
-      <div class="tech-pill">Python 3.11</div>
-      <div class="tech-pill">Railway Cloud</div>
-      <div class="tech-pill">PCM 16kHz</div>
-    </div>
-  </div>
+<section id="faq">
+  <div class="slb">FAQ</div>
+  <h2 class="st">Perguntas<br><span style="color:var(--a)">frequentes</span></h2>
+  <div class="fqinn" id="fql"></div>
 </section>
-
-<!-- CTA FINAL -->
 <section id="cta">
-  <div class="container" style="position:relative;z-index:1">
-    <h2 class="cta-headline reveal">
-      Fale com<br>o mundo.
-    </h2>
-    <p class="cta-sub reveal reveal-delay-1">Agora. Grátis. Sem cadastro.</p>
-    <a href="/app" class="btn-primary reveal reveal-delay-2" style="font-size:1.1rem;padding:20px 48px">
-      Começar agora →
-    </a>
-    <p class="cta-note reveal reveal-delay-3">Funciona em qualquer navegador · Nenhum download necessário</p>
+  <div class="ctit rev">A barreira<span>não existe mais</span></div>
+  <p class="csub rev">Comece gratuitamente. 30 minutos por mês, sem cartão, sem contrato.</p>
+  <div class="rev" style="display:flex;gap:16px;justify-content:center;flex-wrap:wrap">
+    <button class="bcr" style="font-size:12px;padding:18px 50px" onclick="window.location='/app'">Começar grátis agora</button>
+    <button class="bgh" style="padding:18px 50px" onclick="document.getElementById('pricing').scrollIntoView({behavior:'smooth'})">Ver planos</button>
   </div>
+  <div class="rev" style="margin-top:42px;font-family:var(--fm);font-size:9px;letter-spacing:.28em;text-transform:uppercase;color:var(--muted);opacity:.4">Nenhum cartão necessário · cancelamento imediato · LGPD compliant</div>
 </section>
-
-<!-- FOOTER -->
 <footer>
-  <span>© 2025 NMT — Neural Machine Translation</span>
-  <span style="color:var(--muted)">Construído com ❤️ e muito asyncio</span>
+  <div class="fl">N<span>M</span>T — Neural Machine Translator</div>
+  <ul><li><a href="/app">Tradutor</a></li><li><a href="/privacy">Privacidade</a></li><li><a href="mailto:contato@nmt.ai">Contato</a></li><li><a href="https://github.com/rehitutcontato/nmt-translator" target="_blank">GitHub</a></li></ul>
+  <div class="fcp">© 2026 NMT · A barreira do idioma não existe mais</div>
 </footer>
-
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
-// ── Custom Cursor ──────────────────────────────────────────────────────────
-const cursor = document.getElementById('cursor');
-const cursorRing = document.getElementById('cursor-ring');
-let mx = 0, my = 0, cx = 0, cy = 0;
-
-document.addEventListener('mousemove', e => {
-  mx = e.clientX; my = e.clientY;
-  cursor.style.left = mx + 'px';
-  cursor.style.top  = my + 'px';
+// CURSOR
+const cur=document.getElementById('cur'),crng=document.getElementById('crng');
+let mx=0,my=0,rx=0,ry=0;
+document.addEventListener('mousemove',e=>{mx=e.clientX;my=e.clientY;cur.style.left=(mx-5)+'px';cur.style.top=(my-5)+'px';});
+(function ac(){rx+=(mx-rx)*.12;ry+=(my-ry)*.12;crng.style.left=(rx-16)+'px';crng.style.top=(ry-16)+'px';requestAnimationFrame(ac);})();
+document.querySelectorAll('button,a,.fq').forEach(el=>{
+  el.addEventListener('mouseenter',()=>{cur.style.transform='scale(2.2)';crng.style.borderColor='rgba(255,0,255,.6)';});
+  el.addEventListener('mouseleave',()=>{cur.style.transform='scale(1)';crng.style.borderColor='rgba(0,255,255,.5)';});
 });
 
-(function animateCursor() {
-  cx += (mx - cx) * 0.12;
-  cy += (my - cy) * 0.12;
-  cursorRing.style.left = cx + 'px';
-  cursorRing.style.top  = cy + 'px';
-  requestAnimationFrame(animateCursor);
+// THREE.JS GLOBE
+(function(){
+  const cv=document.getElementById('gc');
+  const W=window.innerWidth,H=window.innerHeight;
+  const renderer=new THREE.WebGLRenderer({canvas:cv,antialias:true,alpha:true});
+  renderer.setSize(W,H);renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
+  renderer.setClearColor(0,0);
+  const scene=new THREE.Scene(),camera=new THREE.PerspectiveCamera(52,W/H,.1,1000);
+  camera.position.z=5.2;
+  const gB=new THREE.SphereGeometry(2,64,64);
+  const g=new THREE.Mesh(gB,new THREE.MeshPhongMaterial({color:0x05050A,emissive:0x1A0033,transparent:true,opacity:.92}));
+  const w=new THREE.Mesh(gB,new THREE.MeshBasicMaterial({color:0x00FFFF,wireframe:true,transparent:true,opacity:.09}));
+  const w2=new THREE.Mesh(new THREE.SphereGeometry(1.88,28,28),new THREE.MeshBasicMaterial({color:0xFF00FF,wireframe:true,transparent:true,opacity:.045}));
+  const aM=new THREE.ShaderMaterial({uniforms:{gc:{value:new THREE.Color(0x00FFFF)}},vertexShader:'varying vec3 vN;void main(){vN=normalize(normalMatrix*normal);gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',fragmentShader:'uniform vec3 gc;varying vec3 vN;void main(){float i=pow(.63-dot(vN,vec3(0,0,1)),2.6);gl_FragColor=vec4(gc,1.)*i*.55;}',blending:THREE.AdditiveBlending,side:THREE.BackSide,transparent:true});
+  const a=new THREE.Mesh(new THREE.SphereGeometry(2.28,32,32),aM);
+  function mkP(n,col,r1,r2,sz,op){const p=new Float32Array(n*3);for(let i=0;i<n;i++){const t=Math.random()*Math.PI*2,ph=Math.acos(2*Math.random()-1),r=r1+Math.random()*r2;p[i*3]=r*Math.sin(ph)*Math.cos(t);p[i*3+1]=r*Math.sin(ph)*Math.sin(t);p[i*3+2]=r*Math.cos(ph);}const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.BufferAttribute(p,3));return new THREE.Points(g,new THREE.PointsMaterial({color:col,size:sz,transparent:true,opacity:op}));}
+  const p1=mkP(220,0x00FFFF,2.04,.3,.013,.85),p2=mkP(180,0xFF00FF,2.12,.4,.01,.5);
+  [g,w,w2,a,p1,p2].forEach(o=>{o.position.x=1.9;scene.add(o);});
+  scene.add(new THREE.AmbientLight(0x220044,.8));
+  const pl1=new THREE.PointLight(0x00FFFF,2.2,22);pl1.position.set(4,4,4);scene.add(pl1);
+  const pl2=new THREE.PointLight(0xFF00FF,1.6,22);pl2.position.set(-4,-2,3);scene.add(pl2);
+  let tX=0,tY=0,cX=0,cY=0;
+  document.addEventListener('mousemove',e=>{tY=(e.clientX/window.innerWidth-.5)*.55;tX=(e.clientY/window.innerHeight-.5)*.18;});
+  (function anim(){requestAnimationFrame(anim);const t=Date.now()*.001;cX+=(tX-cX)*.05;cY+=(tY-cY)*.05;g.rotation.y=t*.09+cY;g.rotation.x=cX;w.rotation.y=t*.065+cY;w.rotation.x=cX;w2.rotation.y=-t*.055+cY;w2.rotation.x=-cX*.5;a.rotation.y=t*.04;p1.rotation.y=t*.075;p2.rotation.y=-t*.055;p2.rotation.x=t*.03;const c=Math.sin(t*.5)*.5+.5;aM.uniforms.gc.value.setRGB(0,.8+c*.2,1-c*.28);renderer.render(scene,camera);})();
+  window.addEventListener('resize',()=>{const W2=window.innerWidth,H2=window.innerHeight;camera.aspect=W2/H2;camera.updateProjectionMatrix();renderer.setSize(W2,H2);});
 })();
 
-document.addEventListener('mousedown', () => cursor.style.transform = 'translate(-50%,-50%) scale(0.6)');
-document.addEventListener('mouseup',   () => cursor.style.transform = 'translate(-50%,-50%) scale(1)');
+// MATRIX
+(function(){
+  const c=document.getElementById('mxc');if(!c)return;
+  const ctx=c.getContext('2d');
+  function rsz(){c.width=c.parentElement.offsetWidth;c.height=c.parentElement.offsetHeight;}rsz();window.addEventListener('resize',rsz);
+  const ch='ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789アイウエオカキクケコサシスセソ';
+  let d=[];function rd(){d=Array(Math.floor(c.width/13)).fill(0);}rd();window.addEventListener('resize',rd);
+  setInterval(()=>{ctx.fillStyle='rgba(5,5,10,.06)';ctx.fillRect(0,0,c.width,c.height);for(let i=0;i<d.length;i++){ctx.fillStyle=Math.random()>.93?'#FF00FF':'#00FFFF';ctx.globalAlpha=Math.random()*.35+.08;ctx.font='11px JetBrains Mono,monospace';ctx.fillText(ch[Math.floor(Math.random()*ch.length)],i*13,d[i]*13);if(d[i]*13>c.height&&Math.random()>.97)d[i]=0;d[i]++;}ctx.globalAlpha=1;},55);
+})();
 
-// ── Hero Canvas — Particle Field ───────────────────────────────────────────
-const canvas = document.getElementById('hero-canvas');
-const ctx    = canvas.getContext('2d');
-let W, H, particles = [];
+// MARQUEE
+const L1=[{f:'🇧🇷',n:'Português'},{f:'🇺🇸',n:'English'},{f:'🇩🇪',n:'Deutsch'},{f:'🇯🇵',n:'日本語'},{f:'🇪🇸',n:'Español'},{f:'🇫🇷',n:'Français'},{f:'🇰🇷',n:'한국어'},{f:'🇨🇳',n:'中文'}];
+const L2=[{f:'🇷🇺',n:'Русский'},{f:'🇸🇦',n:'العربية'},{f:'🇮🇳',n:'हिन्दी'},{f:'🇮🇹',n:'Italiano'},{f:'🇳🇱',n:'Nederlands'},{f:'🇵🇱',n:'Polski'},{f:'🇹🇷',n:'Türkçe'},{f:'🇵🇹',n:'Português EU'}];
+function bM(id,items){const t=document.getElementById(id);if(!t)return;const h=items.map(l=>`<div class="mi"><span>${l.f}</span> <span>${l.n}</span></div>`).join('');t.innerHTML=h+h;}
+bM('m1',L1);bM('m2',L2);
 
-function resize() {
-  W = canvas.width  = canvas.offsetWidth;
-  H = canvas.height = canvas.offsetHeight;
-}
-resize();
-window.addEventListener('resize', resize);
+// REVEAL
+const ro=new IntersectionObserver(entries=>{entries.forEach((e,i)=>{if(e.isIntersecting)setTimeout(()=>e.target.classList.add('vis'),i*75);});},{threshold:.1});
+document.querySelectorAll('.rev').forEach(el=>ro.observe(el));
+const so=new IntersectionObserver(entries=>{entries.forEach((e,i)=>{if(e.isIntersecting){setTimeout(()=>{e.target.classList.add('vis');setTimeout(()=>document.getElementById('p1')?.classList.add('on'),600);setTimeout(()=>document.getElementById('p2')?.classList.add('on'),1100);},i*200);}});},{threshold:.2});
+document.querySelectorAll('.tstep').forEach(el=>so.observe(el));
 
-const COLORS = ['rgba(0,229,196,', 'rgba(155,109,255,', 'rgba(255,102,64,'];
+// COUNTERS
+function ac(el){const t=parseInt(el.dataset.t),d=1400,s=Date.now();(function tk(){const p=Math.min((Date.now()-s)/d,1),e=1-Math.pow(1-p,3);el.textContent=Math.round(e*t);if(p<1)requestAnimationFrame(tk);})();}
+const co=new IntersectionObserver(entries=>{entries.forEach(e=>{if(e.isIntersecting){ac(e.target);co.unobserve(e.target);}});},{threshold:.5});
+document.querySelectorAll('.cnt').forEach(el=>co.observe(el));
+const ld=document.getElementById('latd');
+if(ld)setInterval(()=>{ld.textContent=(1.2+Math.random()*.75).toFixed(1)+'s';},2200);
 
-class Particle {
-  constructor() { this.reset(); }
-  reset() {
-    this.x  = Math.random() * W;
-    this.y  = Math.random() * H;
-    this.vx = (Math.random() - 0.5) * 0.4;
-    this.vy = (Math.random() - 0.5) * 0.4;
-    this.r  = Math.random() * 1.5 + 0.5;
-    this.c  = COLORS[Math.floor(Math.random() * COLORS.length)];
-    this.a  = Math.random() * 0.5 + 0.2;
-  }
-  update() {
-    this.x += this.vx; this.y += this.vy;
-    if (this.x < 0 || this.x > W || this.y < 0 || this.y > H) this.reset();
-  }
-  draw() {
-    ctx.beginPath();
-    ctx.arc(this.x, this.y, this.r, 0, Math.PI * 2);
-    ctx.fillStyle = this.c + this.a + ')';
-    ctx.fill();
-  }
-}
+// FAQ
+const faqs=[['Como o sistema detecta o idioma automaticamente?','O NMT usa Whisper Large v3 que retorna a transcrição e o idioma detectado em cada segmento. O sistema aprende o par nas primeiras duas falas — zero configuração.'],['Precisa instalar algum app?','Não. Funciona direto no browser. Acesse /app, permita o microfone, comece a usar. Sem extensão, sem download.'],['O que é o modo intérprete cultural?','Além da tradução literal, o LLaMA adiciona contexto cultural em expressões idiomáticas, gírias e termos com significado específico.'],['Os dados de voz são armazenados?','Áudios brutos não são armazenados. Apenas metadados de uso (idiomas, duração, timestamp) para billing. Consulte /privacy.'],['Como funciona o cancelamento?','Via dashboard. Sem contrato. Cancele quando quiser — acesso continua até o fim do período pago.'],['Quais idiomas são suportados?','PT, EN, ES, DE, FR, IT, JA, KO, ZH, RU, AR, HI, NL, PL, TR — voz neural nativa para cada um.'],['A latência muda por idioma?','Média 1.4–1.8s independente do par. Scripts complexos podem adicionar ~150ms — imperceptível na prática.'],['Existe versão para dispositivo físico?','Sim, em desenvolvimento (Fase 3). ESP32/Raspberry Pi portátil. Clientes Enterprise têm acesso prioritário.']];
+const fl=document.getElementById('fql');
+if(fl){fl.innerHTML=faqs.map(([q,a])=>`<div class="fi"><button class="fq" onclick="tf(this)">${q}<span class="fic">+</span></button><div class="fa">${a}</div></div>`).join('');}
+function tf(btn){const it=btn.parentElement,o=it.classList.contains('open');document.querySelectorAll('.fi').forEach(i=>i.classList.remove('open'));if(!o)it.classList.add('open');}
 
-for (let i = 0; i < 80; i++) particles.push(new Particle());
-
-function drawConnections() {
-  const MAX_DIST = 120;
-  for (let i = 0; i < particles.length; i++) {
-    for (let j = i+1; j < particles.length; j++) {
-      const dx = particles[i].x - particles[j].x;
-      const dy = particles[i].y - particles[j].y;
-      const dist = Math.sqrt(dx*dx + dy*dy);
-      if (dist < MAX_DIST) {
-        const a = (1 - dist/MAX_DIST) * 0.12;
-        ctx.beginPath();
-        ctx.moveTo(particles[i].x, particles[i].y);
-        ctx.lineTo(particles[j].x, particles[j].y);
-        ctx.strokeStyle = `rgba(0,229,196,${a})`;
-        ctx.lineWidth = 0.5;
-        ctx.stroke();
-      }
-    }
-  }
-}
-
-function animateCanvas() {
-  ctx.clearRect(0, 0, W, H);
-  drawConnections();
-  particles.forEach(p => { p.update(); p.draw(); });
-  requestAnimationFrame(animateCanvas);
-}
-animateCanvas();
-
-// ── Morphing Words Between Languages ──────────────────────────────────────
-const phrases = [
-  { text: "não existe mais.", lang: "🇧🇷", color: "#00e5c4" },
-  { text: "no longer exists.", lang: "🇺🇸", color: "#9b6dff" },
-  { text: "gibt es nicht mehr.", lang: "🇩🇪", color: "#ff6640" },
-  { text: "n'existe plus.", lang: "🇫🇷", color: "#00e5c4" },
-  { text: "ya no existe.", lang: "🇪🇸", color: "#9b6dff" },
-  { text: "もう存在しない。", lang: "🇯🇵", color: "#ff6640" },
-];
-
-const container = document.getElementById('morph-container');
-let currentIdx = 0;
-let currentEl  = null;
-
-function createWordEl(phrase) {
-  const div = document.createElement('div');
-  div.className = 'morph-word';
-  div.style.color = phrase.color;
-  div.textContent = phrase.text;
-  container.appendChild(div);
-  return div;
-}
-
-// Init first word
-currentEl = createWordEl(phrases[0]);
-setTimeout(() => currentEl.classList.add('active'), 100);
-
-setInterval(() => {
-  const oldEl = currentEl;
-  oldEl.classList.remove('active');
-  oldEl.classList.add('exit');
-
-  currentIdx = (currentIdx + 1) % phrases.length;
-  currentEl = createWordEl(phrases[currentIdx]);
-
-  setTimeout(() => {
-    currentEl.classList.add('active');
-    setTimeout(() => oldEl.remove(), 800);
-  }, 50);
-}, 2800);
-
-// ── Scroll Reveal ──────────────────────────────────────────────────────────
-const revealEls = document.querySelectorAll('.reveal');
-const io = new IntersectionObserver(entries => {
-  entries.forEach(e => {
-    if (e.isIntersecting) { e.target.classList.add('visible'); io.unobserve(e.target); }
-  });
-}, { threshold: 0.15 });
-revealEls.forEach(el => io.observe(el));
-
-// ── 3D Card Tilt ──────────────────────────────────────────────────────────
-document.querySelectorAll('.feature-card').forEach(card => {
-  card.addEventListener('mousemove', e => {
-    const r = card.getBoundingClientRect();
-    const x = (e.clientX - r.left) / r.width  - 0.5;
-    const y = (e.clientY - r.top)  / r.height - 0.5;
-    card.style.transform = `perspective(600px) rotateY(${x*12}deg) rotateX(${-y*12}deg) translateY(-6px)`;
-  });
-  card.addEventListener('mouseleave', () => {
-    card.style.transform = '';
-  });
+// PRICING TILT
+document.querySelectorAll('.pcard').forEach(c=>{
+  c.addEventListener('mousemove',e=>{const r=c.getBoundingClientRect(),x=(e.clientX-r.left)/r.width-.5,y=(e.clientY-r.top)/r.height-.5;c.style.transform=`perspective(650px) rotateY(${x*10}deg) rotateX(${-y*10}deg) translateY(-6px)${c.classList.contains('ft')?' scale(1.02)':''}`;});
+  c.addEventListener('mouseleave',()=>{c.style.transform=c.classList.contains('ft')?'scale(1.02) translateY(-8px)':'';});
 });
 
-// ── Animated number counters ──────────────────────────────────────────────
-function animateCount(el, target, suffix = '') {
-  let start = 0;
-  const duration = 1800;
-  const startTime = performance.now();
-  function step(now) {
-    const p = Math.min((now - startTime) / duration, 1);
-    const eased = 1 - Math.pow(1 - p, 3);
-    const val = Math.round(eased * target);
-    el.textContent = val.toLocaleString('pt-BR') + suffix;
-    if (p < 1) requestAnimationFrame(step);
-  }
-  requestAnimationFrame(step);
-}
+// NAV SCROLL
+window.addEventListener('scroll',()=>{document.getElementById('nav').style.background=window.scrollY>40?'rgba(5,5,10,.97)':'linear-gradient(180deg,rgba(5,5,10,.95) 0%,transparent 100%)';});
 
-const statIO = new IntersectionObserver(entries => {
-  entries.forEach(e => {
-    if (e.isIntersecting) {
-      const nums = e.target.querySelectorAll('.stat-number');
-      const data = [
-        { target: 7000, suffix: '+' },
-        { target: 3.6, suffix: 'bi', float: true },
-        { target: 2, suffix: 's' },
-        { target: 15, suffix: '+' },
-      ];
-      nums.forEach((num, i) => {
-        if (data[i]) {
-          if (data[i].float) {
-            num.textContent = data[i].target + data[i].suffix;
-          } else {
-            animateCount(num, data[i].target, data[i].suffix);
-          }
-        }
-      });
-      statIO.unobserve(e.target);
-    }
-  });
-}, { threshold: 0.5 });
-
-const statGrid = document.querySelector('.stat-grid');
-if (statGrid) statIO.observe(statGrid);
+function checkout(plan){window.location='/billing/checkout?plan='+plan;}
 </script>
 </body>
 </html>
